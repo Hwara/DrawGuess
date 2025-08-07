@@ -1,0 +1,76 @@
+# ========================================
+# DrawGuess 프로젝트 .gitignore
+# ========================================
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/.terraform.tfstate.lock.info
+
+# AWS
+.aws/
+*.pem
+
+# Node.js / React
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Secrets (매우 중요!)
+*.env
+secrets/
+credentials/
+keys/
+
+# Backup files
+*.backup
+*.bak
+
+# Project specific
+test-website/
+.terraform/
+
+# Documentation builds
+docs/_build/
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Dependencies
+node_modules/

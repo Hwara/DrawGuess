@@ -1,0 +1,130 @@
+name: 🚀 Deploy DrawGuess to AWS
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+env:
+  AWS_REGION: ap-northeast-2
+  
+jobs:
+  # 빌드 및 테스트
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: 📦 Node.js 설정
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: 📋 의존성 설치
+      working-directory: ./frontend
+      run: |
+        npm ci --prefer-offline --no-audit
+    
+    - name: 🔍 TypeScript 타입 체크
+      working-directory: ./frontend
+      run: |
+        npm run build
+    
+    - name: 🧪 테스트 실행
+      working-directory: ./frontend
+      run: |
+        npm test -- --coverage --watchAll=false
+    
+    - name: 📊 빌드 아티팩트 업로드
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: frontend/build/
+        retention-days: 1
+
+  # AWS 배포 (main 브랜치만)
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 체크아웃
+      uses: actions/checkout@v4
+    
+    - name: 📊 빌드 아티팩트 다운로드
+      uses: actions/download-artifact@v4
+      with:
+        name: build-files
+        path: frontend/build/
+    
+    - name: ☁️ AWS 자격증명 설정
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: 📤 S3에 업로드
+      run: |
+        # Terraform 출력에서 S3 버킷 이름 가져오기
+        cd terraform
+        S3_BUCKET=$(terraform output -raw s3_bucket_name)
+        CLOUDFRONT_ID=$(terraform output -raw cloudfront_distribution_id)
+        
+        echo "S3 Bucket: $S3_BUCKET"
+        echo "CloudFront Distribution: $CLOUDFRONT_ID"
+        
+        # S3 동기화 (delete 옵션으로 이전 파일 정리)
+        aws s3 sync ../frontend/build/ s3://$S3_BUCKET \
+          --delete \
+          --cache-control "max-age=86400" \
+          --metadata-directive REPLACE
+        
+        # CloudFront 캐시 무효화
+        aws cloudfront create-invalidation \
+          --distribution-id $CLOUDFRONT_ID \
+          --paths "/*" \
+          --no-cli-pager
+        
+        echo "🎉 배포 완료!"
+        echo "🌐 웹사이트: https://hwara-dev.kr"
+    
+    - name: 📝 배포 성공 알림
+      if: success()
+      run: |
+        echo "✅ 배포 성공!"
+        echo "🌐 웹사이트가 업데이트되었습니다: https://hwara-dev.kr"
+        echo "⏱️ CloudFront 캐시 전파까지 최대 15분 소요"
+    
+    - name: ❌ 배포 실패 알림
+      if: failure()
+      run: |
+        echo "❌ 배포 실패!"
+        echo "🔍 로그를 확인하여 문제를 해결하세요."
+
+  # 성능 테스트 (선택사항)
+  performance-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: ⚡ Lighthouse 성능 측정
+      uses: treosh/lighthouse-ci-action@v10
+      with:
+        urls: |
+          https://hwara-dev.kr
+        budgetPath: ./lighthouse-budget.json
+        uploadArtifacts: true
+        temporaryPublicStorage: true
