@@ -138,19 +138,3 @@ jobs:
       run: |
         echo "❌ 배포 실패!"
         echo "🔍 로그를 확인하여 문제를 해결하세요."
-
-  # 성능 테스트 (선택사항)
-  performance-test:
-    needs: deploy
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: ⚡ Lighthouse 성능 측정
-      uses: treosh/lighthouse-ci-action@v10
-      with:
-        urls: |
-          https://hwara-dev.kr
-        budgetPath: ./lighthouse-budget.json
-        uploadArtifacts: true
-        temporaryPublicStorage: true
