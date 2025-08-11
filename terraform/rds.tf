@@ -150,9 +150,14 @@ output "rds_port" {
   description = "RDS PostgreSQL port"
 }
 
-output "rds_connection_string" {
-  value       = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}:${aws_db_instance.postgres.port}/${var.db_name}"
-  description = "PostgreSQL connection string"
+output "rds_database_name" {
+  value       = aws_db_instance.postgres.db_name
+  description = "RDS database name"
+}
+
+output "rds_username" {
+  value       = aws_db_instance.postgres.username
+  description = "RDS username"
   sensitive   = true
 }
 
