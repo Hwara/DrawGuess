@@ -113,3 +113,55 @@ output "next_steps" {
     "4_monitor" = "CloudWatch에서 모니터링하세요: ${aws_cloudwatch_dashboard.website.dashboard_name}"
   }
 }
+
+# 보안 강화된 출력값들
+
+# RDS 기본 정보 (안전함)
+output "rds_endpoint" {
+  value       = aws_db_instance.postgres.endpoint
+  description = "RDS PostgreSQL endpoint"
+}
+
+output "rds_port" {
+  value       = aws_db_instance.postgres.port
+  description = "RDS PostgreSQL port"
+}
+
+output "rds_database_name" {
+  value       = aws_db_instance.postgres.db_name
+  description = "RDS database name"
+}
+
+output "rds_username" {
+  value       = aws_db_instance.postgres.username
+  description = "RDS username"
+  sensitive   = true  # 사용자명도 민감한 정보로 처리
+}
+
+# Secrets Manager ARN (안전함 - ARN은 공개되어도 접근 권한이 있어야 사용 가능)
+output "secrets_manager_secret_arn" {
+  value       = aws_secretsmanager_secret.db_credentials.arn
+  description = "Secrets Manager ARN for database credentials"
+}
+
+# Tailscale 정보 (안전함)
+output "tailscale_instance_ip" {
+  value       = aws_instance.tailscale.public_ip
+  description = "Tailscale EC2 instance public IP"
+}
+
+output "tailscale_instance_id" {
+  value       = aws_instance.tailscale.id
+  description = "Tailscale EC2 instance ID"
+}
+
+# VPC 정보 (안전함)
+output "vpc_id" {
+  value       = aws_vpc.main.id
+  description = "VPC ID"
+}
+
+output "private_subnet_ids" {
+  value       = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  description = "Private subnet IDs for RDS"
+}

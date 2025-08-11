@@ -121,3 +121,90 @@ variable "s3_transfer_acceleration" {
   type        = bool
   default     = false
 }
+
+# ========================================
+# Phase 4 - 하이브리드 클라우드 변수들
+# ========================================
+
+# Tailscale 설정
+variable "tailscale_auth_key" {
+  description = "Tailscale 인증 키 (선택사항 - 수동 설정도 가능)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# RDS 설정
+variable "db_instance_class" {
+  description = "RDS 인스턴스 클래스"
+  type        = string
+  default     = "db.t3.micro"  # 프리티어
+}
+
+variable "db_allocated_storage" {
+  description = "RDS 할당 스토리지 (GB)"
+  type        = number
+  default     = 20  # 프리티어 최소값
+}
+
+variable "db_name" {
+  description = "데이터베이스 이름"
+  type        = string
+  default     = "drawguess"
+}
+
+# 데이터베이스 사용자명
+variable "db_username" {
+  description = "데이터베이스 사용자명"
+  type        = string
+}
+
+# 데이터베이스 비밀번호 (수정 필요)
+variable "db_password" {
+  description = "데이터베이스 비밀번호"
+  type        = string
+  sensitive   = true
+  
+  validation {
+    condition     = length(var.db_password) >= 8
+    error_message = "데이터베이스 비밀번호는 최소 8자 이상이어야 합니다."
+  }
+}
+# 네트워크 설정
+variable "vpc_cidr" {
+  description = "VPC CIDR 블록"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidr" {
+  description = "퍼블릭 서브넷 CIDR 블록"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "private_subnet_cidrs" {
+  description = "프라이빗 서브넷 CIDR 블록들"
+  type        = list(string)
+  default     = ["10.0.2.0/24", "10.0.3.0/24"]
+}
+
+# 보안 설정
+variable "allowed_ssh_cidrs" {
+  description = "SSH 접근을 허용할 IP CIDR 블록들"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]  # 실제로는 본인 IP로 제한하세요
+}
+
+variable "enable_rds_deletion_protection" {
+  description = "RDS 삭제 보호 활성화"
+  type        = bool
+  default     = false  # 개발 환경에서는 false
+}
+
+# 모니터링 설정
+variable "enable_enhanced_monitoring" {
+  description = "RDS 향상된 모니터링 활성화"
+  type        = bool
+  default     = false  # 비용 절약을 위해 개발 환경에서는 false
+}

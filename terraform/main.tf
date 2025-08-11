@@ -20,7 +20,7 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "DrawGuess"
-      Phase       = "Phase1"
+      Phase       = "Phase4"
       Environment = var.environment
       ManagedBy   = "Terraform"
     }
@@ -31,6 +31,26 @@ provider "aws" {
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
+}
+
+# ========================================
+# 로컬 변수 정의 (여기에 추가!)
+# ========================================
+
+locals {
+  # 공통 이름 접두사
+  name_prefix = "${var.project_name}-${var.environment}"
+  
+  # 공통 태그 (provider default_tags와 병합)
+  common_tags = merge(
+    {
+      Project     = "DrawGuess"
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+      Phase       = "Phase4-Hybrid"
+    },
+    var.additional_tags
+  )
 }
 
 # ========================================
