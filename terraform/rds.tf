@@ -61,7 +61,7 @@ resource "aws_db_instance" "postgres" {
   # 인스턴스 설정
   instance_class    = var.db_instance_class
   allocated_storage = var.db_allocated_storage
-  storage_type      = "gp3"  # 최신 GP3 스토리지
+  storage_type      = "gp2"
   storage_encrypted = true
 
   # 데이터베이스 설정
