@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import { HowToPlay, Leaderboard, About } from './pages/OtherPages';
 import ServerStatus from './pages/ServerStatus';
+import GameTest from './pages/GameTest';
 import './App.css';
 
 const App: React.FC = () => {
@@ -16,6 +17,7 @@ const App: React.FC = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/how-to-play" element={<HowToPlay />} />
             <Route path="/server-status" element={<ServerStatus />} />
+            <Route path="/game-test" element={<GameTest />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/about" element={<About />} />
           </Routes>

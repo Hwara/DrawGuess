@@ -11,6 +11,7 @@ const Navbar: React.FC = () => {
                     <li><a href="/">홈</a></li>
                     <li><a href="/how-to-play">게임 방법</a></li>
                     <li><a href="/server-status">서버 상태</a></li>
+                    <li><a href="/game-test">게임 테스트</a></li>
                     <li><a href="/leaderboard">순위표</a></li>
                     <li><a href="/about">소개</a></li>
                 </ul>
