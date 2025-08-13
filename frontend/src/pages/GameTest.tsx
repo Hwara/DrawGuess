@@ -104,7 +104,7 @@ const GameTest: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: string | undefined | null) => {
         switch (status?.toLowerCase()) {
             case 'healthy':
             case 'connected':
