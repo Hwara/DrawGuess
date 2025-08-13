@@ -1,4 +1,4 @@
-// DrawGuess Socket.IO 실시간 게임 서버 v3.0.3
+// DrawGuess Socket.IO 실시간 게임 서버
 // 하이브리드 클라우드 환경에서 멀티플레이어 캐치마인드 게임
 
 const express = require('express');
@@ -15,13 +15,7 @@ const server = http.createServer(app);
 app.use(cors({
   origin: [
     'https://hwara-dev.kr',
-    'http://172.30.1.101',
-    'http://172.30.1.102:3000',
     'http://localhost:3000',
-    'https://api.hwara-dev.kr',
-    'http://api.hwara-dev.kr',
-    'file://', // 로컬 HTML 파일 접근 허용
-    '*' // 개발 환경에서 모든 origin 허용
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -35,11 +29,7 @@ const io = socketIo(server, {
   cors: {
     origin: [
       'https://hwara-dev.kr',
-      'http://172.30.1.101',
-      'http://172.30.1.102:3000',
       'http://localhost:3000',
-      'file://', // 로컬 HTML 파일 허용
-      '*' // 개발 환경에서 모든 origin 허용
     ],
     methods: ['GET', 'POST'],
     credentials: true,
@@ -715,7 +705,7 @@ async function startServer() {
       console.log(`🔍 헬스체크: http://0.0.0.0:${PORT}/health`);
       console.log(`📊 통계: http://0.0.0.0:${PORT}/api/stats`);
       console.log(`🏠 방 목록: http://0.0.0.0:${PORT}/api/rooms`);
-      console.log(`🔗 CORS 허용: hwara-dev.kr, 172.30.1.102:3000, localhost:3000`);
+      console.log(`🔗 CORS 허용: hwara-dev.kr, localhost:3000`);
     });
   } catch (error) {
     console.error('❌ 서버 시작 실패:', error);
