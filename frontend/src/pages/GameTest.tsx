@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import './GameTest.css';
 
 interface GameServerStatus {
     status: string;
@@ -13,11 +14,30 @@ interface GameServerStatus {
     uptime: string;
 }
 
+// 🔧 API 응답에 맞게 수정된 인터페이스
+interface ApiGameStats {
+    realtime: {
+        active_rooms: number;
+        playing_rooms: number;
+        active_players: number;
+        socket_connections: number;
+    };
+    historical: {
+        total_games: number;
+        total_users: number;
+        top_scores: any[];
+    };
+    last_updated: string;
+}
+
+// UI에서 사용할 가공된 데이터 인터페이스
 interface GameStats {
     totalUsers: number;
     totalGames: number;
     activeConnections: number;
-    performance: {
+    activeRooms: number;
+    activePlayers: number;
+    performance?: {
         avgResponseTime: number;
         memoryUsage: number;
         cpuUsage: number;
@@ -31,7 +51,7 @@ const GameTest: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-    // 게임 서버 URL (Phase 4에서 구축된 라즈베리파이 서버)
+    // 🌐 게임 서버 URL - api.hwara-dev.kr로 고정
     const GAME_SERVER_URL = 'https://api.hwara-dev.kr';
 
     const fetchServerStatus = async () => {
@@ -39,15 +59,21 @@ const GameTest: React.FC = () => {
         setError(null);
 
         try {
+            console.log(`🔗 서버 상태 확인: ${GAME_SERVER_URL}/health`);
             const response = await fetch(`${GAME_SERVER_URL}/health`);
+
             if (!response.ok) {
-                throw new Error(`서버 응답 오류: ${response.status}`);
+                throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
             }
+
             const data = await response.json();
+            console.log('✅ 서버 상태 응답:', data);
             setServerStatus(data);
             setLastUpdate(new Date());
         } catch (err) {
-            setError(err instanceof Error ? err.message : '서버 연결 실패');
+            const errorMessage = err instanceof Error ? err.message : '서버 연결 실패';
+            console.error('❌ 서버 상태 확인 실패:', errorMessage);
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -55,13 +81,29 @@ const GameTest: React.FC = () => {
 
     const fetchGameStats = async () => {
         try {
+            console.log(`📊 게임 통계 확인: ${GAME_SERVER_URL}/api/stats`);
             const response = await fetch(`${GAME_SERVER_URL}/api/stats`);
+
             if (response.ok) {
-                const data = await response.json();
-                setGameStats(data);
+                const apiData: ApiGameStats = await response.json();
+                console.log('✅ 게임 통계 응답:', apiData);
+
+                // 🔄 API 응답을 UI 형식으로 변환
+                const transformedStats: GameStats = {
+                    totalUsers: apiData.historical.total_users,
+                    totalGames: apiData.historical.total_games,
+                    activeConnections: apiData.realtime.socket_connections,
+                    activeRooms: apiData.realtime.active_rooms,
+                    activePlayers: apiData.realtime.active_players,
+                    // performance 데이터는 현재 API에서 제공하지 않으므로 undefined
+                };
+
+                setGameStats(transformedStats);
+            } else {
+                console.warn(`⚠️ 게임 통계 로드 실패: ${response.status}`);
             }
         } catch (err) {
-            console.warn('게임 통계 로드 실패:', err);
+            console.warn('⚠️ 게임 통계 로드 실패:', err);
         }
     };
 
@@ -92,6 +134,7 @@ const GameTest: React.FC = () => {
     };
 
     useEffect(() => {
+        console.log(`🚀 GameTest 초기화 - 서버: ${GAME_SERVER_URL}`);
         fetchServerStatus();
         fetchGameStats();
 
@@ -203,14 +246,15 @@ const GameTest: React.FC = () => {
                     )}
                 </section>
 
-                {gameStats && gameStats.performance && (
+                {/* 게임 통계 */}
+                {gameStats && (
                     <section className="game-stats-section">
                         <h2>📈 게임 통계</h2>
                         <div className="stats-grid">
                             <div className="stat-card">
                                 <div className="stat-icon">👥</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats?.totalUsers || 0}</div>
+                                    <div className="stat-value">{gameStats.totalUsers}</div>
                                     <div className="stat-label">총 사용자</div>
                                 </div>
                             </div>
@@ -218,7 +262,7 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">🎮</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats?.totalGames || 0}</div>
+                                    <div className="stat-value">{gameStats.totalGames}</div>
                                     <div className="stat-label">총 게임 수</div>
                                 </div>
                             </div>
@@ -226,18 +270,36 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">🔗</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats?.activeConnections || 0}</div>
-                                    <div className="stat-label">활성 연결</div>
+                                    <div className="stat-value">{gameStats.activeConnections}</div>
+                                    <div className="stat-label">Socket 연결</div>
                                 </div>
                             </div>
 
                             <div className="stat-card">
-                                <div className="stat-icon">⚡</div>
+                                <div className="stat-icon">🏠</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats?.performance?.avgResponseTime || 0}ms</div>
-                                    <div className="stat-label">평균 응답시간</div>
+                                    <div className="stat-value">{gameStats.activeRooms}</div>
+                                    <div className="stat-label">활성 게임방</div>
                                 </div>
                             </div>
+
+                            <div className="stat-card">
+                                <div className="stat-icon">👨‍💻</div>
+                                <div className="stat-content">
+                                    <div className="stat-value">{gameStats.activePlayers}</div>
+                                    <div className="stat-label">현재 플레이어</div>
+                                </div>
+                            </div>
+
+                            {gameStats.performance && (
+                                <div className="stat-card">
+                                    <div className="stat-icon">⚡</div>
+                                    <div className="stat-content">
+                                        <div className="stat-value">{gameStats.performance.avgResponseTime}ms</div>
+                                        <div className="stat-label">평균 응답시간</div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
                 )}
@@ -277,6 +339,15 @@ const GameTest: React.FC = () => {
                             className="test-btn info"
                         >
                             🔍 환경 변수 디버깅
+                        </a>
+
+                        <a
+                            href={`${GAME_SERVER_URL}/api/stats`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="test-btn info"
+                        >
+                            📊 Raw API 응답 보기
                         </a>
                     </div>
                 </section>
@@ -360,6 +431,25 @@ const GameTest: React.FC = () => {
                                 <span>CloudFront</span>
                                 <span>Tailscale VPN</span>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 디버깅 정보 */}
+                <section className="debug-info">
+                    <h2>🔍 디버깅 정보</h2>
+                    <div className="debug-details">
+                        <div className="debug-item">
+                            <strong>현재 환경:</strong> {process.env.NODE_ENV || 'development'}
+                        </div>
+                        <div className="debug-item">
+                            <strong>게임 서버 URL:</strong> {GAME_SERVER_URL}
+                        </div>
+                        <div className="debug-item">
+                            <strong>브라우저 User Agent:</strong> {navigator.userAgent}
+                        </div>
+                        <div className="debug-item">
+                            <strong>현재 시간:</strong> {new Date().toISOString()}
                         </div>
                     </div>
                 </section>
