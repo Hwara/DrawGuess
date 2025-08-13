@@ -105,7 +105,9 @@ const GameTest: React.FC = () => {
     }, []);
 
     const getStatusColor = (status: string | undefined | null) => {
-        switch (status?.toLowerCase()) {
+        const statusStr = String(status || '').toLowerCase();
+
+        switch (statusStr) {
             case 'healthy':
             case 'connected':
             case 'ok':
