@@ -18,6 +18,8 @@ app.use(cors({
     'http://172.30.1.101',
     'http://172.30.1.102:3000',
     'http://localhost:3000',
+    'https://api.hwara-dev.kr',
+    'http://api.hwara-dev.kr',
     'file://', // 로컬 HTML 파일 접근 허용
     '*' // 개발 환경에서 모든 origin 허용
   ],
