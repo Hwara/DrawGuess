@@ -203,15 +203,14 @@ const GameTest: React.FC = () => {
                     )}
                 </section>
 
-                {/* 게임 통계 */}
-                {gameStats && (
+                {gameStats && gameStats.performance && (
                     <section className="game-stats-section">
                         <h2>📈 게임 통계</h2>
                         <div className="stats-grid">
                             <div className="stat-card">
                                 <div className="stat-icon">👥</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats.totalUsers}</div>
+                                    <div className="stat-value">{gameStats?.totalUsers || 0}</div>
                                     <div className="stat-label">총 사용자</div>
                                 </div>
                             </div>
@@ -219,7 +218,7 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">🎮</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats.totalGames}</div>
+                                    <div className="stat-value">{gameStats?.totalGames || 0}</div>
                                     <div className="stat-label">총 게임 수</div>
                                 </div>
                             </div>
@@ -227,7 +226,7 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">🔗</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats.activeConnections}</div>
+                                    <div className="stat-value">{gameStats?.activeConnections || 0}</div>
                                     <div className="stat-label">활성 연결</div>
                                 </div>
                             </div>
@@ -235,7 +234,7 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">⚡</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats?.performance?.avgResponseTime || '?'}ms</div>
+                                    <div className="stat-value">{gameStats?.performance?.avgResponseTime || 0}ms</div>
                                     <div className="stat-label">평균 응답시간</div>
                                 </div>
                             </div>
