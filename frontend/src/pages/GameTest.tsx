@@ -1,17 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import './GameTest.css';
 
+// 🔧 실제 API 응답 구조에 맞게 정확히 수정된 인터페이스
 interface GameServerStatus {
     status: string;
     timestamp: string;
-    services: {
-        redis: string;
-        database: string;
-        api: string;
-    };
     environment: string;
     version: string;
-    uptime: string;
+    location: string;
+    services: {
+        redis: {
+            status: string;
+            ping: string;
+        };
+        postgresql: {
+            status: string;
+            time: string;
+            version: string;
+        };
+        socketio: {
+            status: string;
+            connected_clients: number;
+            active_rooms: number;
+            total_players: number;
+        };
+    };
+    hybrid_cloud: {
+        location: string;
+        aws_connection: string;
+        tailscale: string;
+    };
+    config: {
+        redis_host: string;
+        db_host: string;
+    };
 }
 
 // 🔧 API 응답에 맞게 수정된 인터페이스
@@ -66,8 +87,9 @@ const GameTest: React.FC = () => {
                 throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const data: GameServerStatus = await response.json();
             console.log('✅ 서버 상태 응답:', data);
+
             setServerStatus(data);
             setLastUpdate(new Date());
         } catch (err) {
@@ -98,6 +120,7 @@ const GameTest: React.FC = () => {
                     // performance 데이터는 현재 API에서 제공하지 않으므로 undefined
                 };
 
+                console.log('🔧 변환된 통계:', transformedStats);
                 setGameStats(transformedStats);
             } else {
                 console.warn(`⚠️ 게임 통계 로드 실패: ${response.status}`);
@@ -107,30 +130,45 @@ const GameTest: React.FC = () => {
         }
     };
 
-    const testRedisConnection = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${GAME_SERVER_URL}/test/redis`);
-            const result = await response.json();
-            alert(`Redis 테스트: ${result.success ? '성공' : '실패'}\n${result.message}`);
-        } catch (err) {
-            alert('Redis 테스트 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
-        } finally {
-            setIsLoading(false);
+    const showRedisInfo = () => {
+        if (!serverStatus) {
+            alert('서버 상태를 먼저 확인해주세요.');
+            return;
         }
+
+        const redisInfo = serverStatus.services.redis;
+        alert(`Redis 연결 정보:\n` +
+            `상태: ${redisInfo.status}\n` +
+            `Ping: ${redisInfo.ping}\n` +
+            `호스트: ${serverStatus.config.redis_host}`);
     };
 
-    const testDatabaseConnection = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${GAME_SERVER_URL}/test/database`);
-            const result = await response.json();
-            alert(`PostgreSQL 테스트: ${result.success ? '성공' : '실패'}\n${result.message}`);
-        } catch (err) {
-            alert('데이터베이스 테스트 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
-        } finally {
-            setIsLoading(false);
+    const showDatabaseInfo = () => {
+        if (!serverStatus) {
+            alert('서버 상태를 먼저 확인해주세요.');
+            return;
         }
+
+        const dbInfo = serverStatus.services.postgresql;
+        alert(`PostgreSQL 연결 정보:\n` +
+            `상태: ${dbInfo.status}\n` +
+            `버전: ${dbInfo.version}\n` +
+            `연결 시간: ${new Date(dbInfo.time).toLocaleString('ko-KR')}\n` +
+            `호스트: ${serverStatus.config.db_host}`);
+    };
+
+    const showHybridCloudInfo = () => {
+        if (!serverStatus) {
+            alert('서버 상태를 먼저 확인해주세요.');
+            return;
+        }
+
+        const hybridInfo = serverStatus.hybrid_cloud;
+        alert(`하이브리드 클라우드 정보:\n` +
+            `위치: ${hybridInfo.location}\n` +
+            `AWS 연결: ${hybridInfo.aws_connection}\n` +
+            `Tailscale VPN: ${hybridInfo.tailscale}\n` +
+            `서버 위치: ${serverStatus.location}`);
     };
 
     useEffect(() => {
@@ -140,6 +178,7 @@ const GameTest: React.FC = () => {
 
         // 자동 새로고침 (30초마다)
         const interval = setInterval(() => {
+            console.log('⏰ 자동 새로고침 실행');
             fetchServerStatus();
             fetchGameStats();
         }, 30000);
@@ -154,11 +193,13 @@ const GameTest: React.FC = () => {
             case 'healthy':
             case 'connected':
             case 'ok':
+            case 'active':
                 return '#4ade80'; // green
             case 'warning':
                 return '#fbbf24'; // yellow
             case 'error':
             case 'disconnected':
+            case 'inactive':
                 return '#f87171'; // red
             default:
                 return '#94a3b8'; // gray
@@ -201,41 +242,52 @@ const GameTest: React.FC = () => {
                                 </div>
                                 <div className="status-content">
                                     <h3>전체 상태</h3>
-                                    <p>{serverStatus.status || 'Unknown'}</p>
+                                    <p>{serverStatus.status}</p>
                                     <small>v{serverStatus.version} | {serverStatus.environment}</small>
                                 </div>
                             </div>
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.redis) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services.redis.status) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>Redis Cache</h3>
-                                    <p>{serverStatus.services?.redis || 'Unknown'}</p>
-                                    <small>라즈베리파이 로컬 캐시</small>
+                                    <p>{serverStatus.services.redis.status}</p>
+                                    <small>{serverStatus.services.redis.ping} | {serverStatus.config.redis_host}</small>
                                 </div>
                             </div>
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.database) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services.postgresql.status) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>PostgreSQL DB</h3>
-                                    <p>{serverStatus.services?.database || 'Unknown'}</p>
-                                    <small>AWS RDS (하이브리드)</small>
+                                    <p>{serverStatus.services.postgresql.status}</p>
+                                    <small>{serverStatus.services.postgresql.version} | AWS RDS</small>
                                 </div>
                             </div>
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.api) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services.socketio.status) }}>
                                 </div>
                                 <div className="status-content">
-                                    <h3>API 서비스</h3>
-                                    <p>{serverStatus.services?.api || 'Unknown'}</p>
-                                    <small>Node.js + Express</small>
+                                    <h3>Socket.IO 서비스</h3>
+                                    <p>{serverStatus.services.socketio.status}</p>
+                                    <small>{serverStatus.services.socketio.connected_clients}명 연결 | {serverStatus.services.socketio.active_rooms}개 방</small>
+                                </div>
+                            </div>
+
+                            <div className="status-card">
+                                <div className="status-indicator"
+                                    style={{ backgroundColor: getStatusColor(serverStatus.hybrid_cloud.aws_connection) }}>
+                                </div>
+                                <div className="status-content">
+                                    <h3>하이브리드 클라우드</h3>
+                                    <p>{serverStatus.hybrid_cloud.aws_connection}</p>
+                                    <small>Tailscale: {serverStatus.hybrid_cloud.tailscale} | {serverStatus.location}</small>
                                 </div>
                             </div>
                         </div>
@@ -247,7 +299,7 @@ const GameTest: React.FC = () => {
                 </section>
 
                 {/* 게임 통계 */}
-                {gameStats && (
+                {gameStats ? (
                     <section className="game-stats-section">
                         <h2>📈 게임 통계</h2>
                         <div className="stats-grid">
@@ -302,6 +354,13 @@ const GameTest: React.FC = () => {
                             )}
                         </div>
                     </section>
+                ) : (
+                    <section className="game-stats-section">
+                        <h2>📈 게임 통계</h2>
+                        <div className="loading-placeholder">
+                            게임 통계를 불러오는 중...
+                        </div>
+                    </section>
                 )}
 
                 {/* 테스트 버튼들 */}
@@ -318,27 +377,35 @@ const GameTest: React.FC = () => {
 
                         <button
                             className="test-btn secondary"
-                            onClick={testRedisConnection}
-                            disabled={isLoading}
+                            onClick={showRedisInfo}
+                            disabled={!serverStatus}
                         >
-                            🗄️ Redis 연결 테스트
+                            🗄️ Redis 연결 정보
                         </button>
 
                         <button
                             className="test-btn secondary"
-                            onClick={testDatabaseConnection}
-                            disabled={isLoading}
+                            onClick={showDatabaseInfo}
+                            disabled={!serverStatus}
                         >
-                            💾 PostgreSQL 연결 테스트
+                            💾 PostgreSQL 연결 정보
+                        </button>
+
+                        <button
+                            className="test-btn secondary"
+                            onClick={showHybridCloudInfo}
+                            disabled={!serverStatus}
+                        >
+                            🔗 하이브리드 클라우드 정보
                         </button>
 
                         <a
-                            href={`${GAME_SERVER_URL}/debug/env`}
+                            href={`${GAME_SERVER_URL}/health`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="test-btn info"
                         >
-                            🔍 환경 변수 디버깅
+                            🔍 Health 엔드포인트 보기
                         </a>
 
                         <a
@@ -347,7 +414,7 @@ const GameTest: React.FC = () => {
                             rel="noopener noreferrer"
                             className="test-btn info"
                         >
-                            📊 Raw API 응답 보기
+                            📊 Stats 엔드포인트 보기
                         </a>
                     </div>
                 </section>
@@ -366,16 +433,60 @@ const GameTest: React.FC = () => {
                             </ul>
                         </div>
 
-                        <div className="arch-arrow">🔗 Tailscale VPN</div>
+                        <div className="arch-arrow">
+                            <span>🔗</span>
+                            <small>Tailscale VPN</small>
+                        </div>
 
                         <div className="arch-component cloud">
                             <h3>☁️ AWS 클라우드</h3>
                             <ul>
                                 <li>• PostgreSQL RDS (영구 데이터)</li>
-                                <li>• S3 + CloudFront (정적 자산)</li>
-                                <li>• Route 53 (DNS)</li>
+                                <li>• S3 (정적 자산 저장)</li>
                                 <li>• CloudWatch (모니터링)</li>
                             </ul>
+                        </div>
+
+                        <div className="arch-arrow">
+                            <span>🌐</span>
+                            <small>웹 트래픽</small>
+                        </div>
+
+                        <div className="arch-component" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white' }}>
+                            <h3>🌐 Cloudflare</h3>
+                            <ul>
+                                <li>• DNS 관리 (hwara-dev.kr)</li>
+                                <li>• CDN & 캐싱</li>
+                                <li>• DDoS 보호</li>
+                                <li>• SSL/TLS 인증서</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="data-flow">
+                        <h4>📊 데이터 흐름</h4>
+                        <div className="flow-items">
+                            <div className="flow-item">
+                                <span className="flow-icon">⚡</span>
+                                <div className="flow-content">
+                                    <strong>실시간 데이터</strong>
+                                    <p>게임 세션, 채팅 → Redis (라즈베리파이)</p>
+                                </div>
+                            </div>
+                            <div className="flow-item">
+                                <span className="flow-icon">💾</span>
+                                <div className="flow-content">
+                                    <strong>영구 데이터</strong>
+                                    <p>사용자 정보, 게임 기록 → PostgreSQL (AWS)</p>
+                                </div>
+                            </div>
+                            <div className="flow-item">
+                                <span className="flow-icon">🌍</span>
+                                <div className="flow-content">
+                                    <strong>글로벌 배포</strong>
+                                    <p>웹사이트, 이미지 → Cloudflare CDN</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -385,6 +496,8 @@ const GameTest: React.FC = () => {
                             <li>• <strong>70% 비용 절감</strong>: 컴퓨팅은 로컬, 관리형 서비스는 클라우드</li>
                             <li>• <strong>낮은 지연시간</strong>: 실시간 게임 로직을 물리적으로 가까운 곳에서 처리</li>
                             <li>• <strong>높은 안정성</strong>: AWS 관리형 서비스로 데이터 백업 및 복구</li>
+                            <li>• <strong>글로벌 CDN</strong>: Cloudflare를 통한 전 세계 빠른 콘텐츠 배포</li>
+                            <li>• <strong>통합 DNS/CDN</strong>: Cloudflare 하나로 DNS + CDN + 보안 통합 관리</li>
                             <li>• <strong>확장 가능성</strong>: Kubernetes 기반 수평 확장</li>
                         </ul>
                     </div>
@@ -424,12 +537,29 @@ const GameTest: React.FC = () => {
                         </div>
 
                         <div className="tech-category">
-                            <h3>Cloud (AWS)</h3>
+                            <h3>AWS 클라우드</h3>
                             <div className="tech-tags">
                                 <span>RDS PostgreSQL</span>
                                 <span>S3</span>
-                                <span>CloudFront</span>
+                                <span>CloudWatch</span>
+                            </div>
+                        </div>
+
+                        <div className="tech-category">
+                            <h3>Cloudflare</h3>
+                            <div className="tech-tags">
+                                <span>DNS</span>
+                                <span>CDN</span>
+                                <span>DDoS Protection</span>
+                                <span>SSL/TLS</span>
+                            </div>
+                        </div>
+
+                        <div className="tech-category">
+                            <h3>VPN & 연결</h3>
+                            <div className="tech-tags">
                                 <span>Tailscale VPN</span>
+                                <span>WireGuard</span>
                             </div>
                         </div>
                     </div>
