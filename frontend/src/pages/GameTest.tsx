@@ -235,7 +235,7 @@ const GameTest: React.FC = () => {
                             <div className="stat-card">
                                 <div className="stat-icon">⚡</div>
                                 <div className="stat-content">
-                                    <div className="stat-value">{gameStats.performance.avgResponseTime}ms</div>
+                                    <div className="stat-value">{gameStats?.performance?.avgResponseTime || '?'}ms</div>
                                     <div className="stat-label">평균 응답시간</div>
                                 </div>
                             </div>
