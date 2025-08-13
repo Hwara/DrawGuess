@@ -80,29 +80,16 @@ jobs:
         # AWS CLI로 리소스 직접 조회 (Terraform 없이)
         echo "🔍 AWS 리소스 조회 중..."
         
-        # S3 버킷 이름 조회 (drawguess-dev-website 패턴)
-        S3_BUCKET=$(aws s3 ls | grep "drawguess.*website" | awk '{print $3}')
-        
-        # CloudFront 배포 ID 조회
-        CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-          --query "DistributionList.Items[?contains(Comment, 'drawguess') || contains(Origins.Items[0].DomainName, 'drawguess')].Id" \
-          --output text)
+        # S3 버킷 이름 조회 (hwara-dev.kr)
+        S3_BUCKET=$(aws s3 ls | grep "hwara-dev.kr" | awk '{print $3}')
         
         echo "📦 S3 Bucket: $S3_BUCKET"
-        echo "🌐 CloudFront Distribution: $CLOUDFRONT_ID"
-        
+
         # 값이 비어있는지 확인
         if [ -z "$S3_BUCKET" ]; then
           echo "❌ S3 버킷을 찾을 수 없습니다!"
           echo "📋 사용 가능한 버킷 목록:"
           aws s3 ls
-          exit 1
-        fi
-        
-        if [ -z "$CLOUDFRONT_ID" ]; then
-          echo "❌ CloudFront 배포를 찾을 수 없습니다!"
-          echo "📋 사용 가능한 배포 목록:"
-          aws cloudfront list-distributions --query "DistributionList.Items[].{Id:Id,DomainName:DomainName,Comment:Comment}" --output table
           exit 1
         fi
         
@@ -113,25 +100,11 @@ jobs:
           --cache-control "max-age=86400" \
           --metadata-directive REPLACE
         
-        # CloudFront 캐시 무효화
-        echo "🔄 CloudFront 캐시 무효화 중..."
-        INVALIDATION_ID=$(aws cloudfront create-invalidation \
-          --distribution-id $CLOUDFRONT_ID \
-          --paths "/*" \
-          --query "Invalidation.Id" \
-          --output text)
-        
-        echo "✅ 캐시 무효화 시작됨: $INVALIDATION_ID"
-        echo "🎉 배포 완료!"
-        echo "🌐 웹사이트: https://hwara-dev.kr"
-        echo "⏱️ CloudFront 캐시 전파까지 최대 15분 소요"
-    
     - name: 📝 배포 성공 알림
       if: success()
       run: |
         echo "✅ 배포 성공!"
         echo "🌐 웹사이트가 업데이트되었습니다: https://hwara-dev.kr"
-        echo "⏱️ CloudFront 캐시 전파까지 최대 15분 소요"
     
     - name: ❌ 배포 실패 알림
       if: failure()
