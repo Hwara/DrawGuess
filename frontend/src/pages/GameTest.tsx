@@ -30,14 +30,14 @@ const GameTest: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-    
+
     // 게임 서버 URL (Phase 4에서 구축된 라즈베리파이 서버)
-    const GAME_SERVER_URL = 'http://172.30.1.102:3000';
+    const GAME_SERVER_URL = 'https://api.hwara-dev.kr';
 
     const fetchServerStatus = async () => {
         setIsLoading(true);
         setError(null);
-        
+
         try {
             const response = await fetch(`${GAME_SERVER_URL}/health`);
             if (!response.ok) {
@@ -94,7 +94,7 @@ const GameTest: React.FC = () => {
     useEffect(() => {
         fetchServerStatus();
         fetchGameStats();
-        
+
         // 자동 새로고침 (30초마다)
         const interval = setInterval(() => {
             fetchServerStatus();
@@ -151,8 +151,8 @@ const GameTest: React.FC = () => {
                     {serverStatus ? (
                         <div className="status-grid">
                             <div className="status-card">
-                                <div className="status-indicator" 
-                                     style={{ backgroundColor: getStatusColor(serverStatus.status) }}>
+                                <div className="status-indicator"
+                                    style={{ backgroundColor: getStatusColor(serverStatus.status) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>전체 상태</h3>
@@ -163,7 +163,7 @@ const GameTest: React.FC = () => {
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                     style={{ backgroundColor: getStatusColor(serverStatus.services?.redis) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.redis) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>Redis Cache</h3>
@@ -174,7 +174,7 @@ const GameTest: React.FC = () => {
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                     style={{ backgroundColor: getStatusColor(serverStatus.services?.database) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.database) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>PostgreSQL DB</h3>
@@ -185,7 +185,7 @@ const GameTest: React.FC = () => {
 
                             <div className="status-card">
                                 <div className="status-indicator"
-                                     style={{ backgroundColor: getStatusColor(serverStatus.services?.api) }}>
+                                    style={{ backgroundColor: getStatusColor(serverStatus.services?.api) }}>
                                 </div>
                                 <div className="status-content">
                                     <h3>API 서비스</h3>
@@ -213,7 +213,7 @@ const GameTest: React.FC = () => {
                                     <div className="stat-label">총 사용자</div>
                                 </div>
                             </div>
-                            
+
                             <div className="stat-card">
                                 <div className="stat-icon">🎮</div>
                                 <div className="stat-content">
@@ -221,7 +221,7 @@ const GameTest: React.FC = () => {
                                     <div className="stat-label">총 게임 수</div>
                                 </div>
                             </div>
-                            
+
                             <div className="stat-card">
                                 <div className="stat-icon">🔗</div>
                                 <div className="stat-content">
@@ -245,31 +245,31 @@ const GameTest: React.FC = () => {
                 <section className="test-controls">
                     <h2>🧪 연결 테스트</h2>
                     <div className="test-buttons">
-                        <button 
+                        <button
                             className="test-btn primary"
                             onClick={fetchServerStatus}
                             disabled={isLoading}
                         >
                             {isLoading ? '확인 중...' : '🔄 서버 상태 새로고침'}
                         </button>
-                        
-                        <button 
+
+                        <button
                             className="test-btn secondary"
                             onClick={testRedisConnection}
                             disabled={isLoading}
                         >
                             🗄️ Redis 연결 테스트
                         </button>
-                        
-                        <button 
+
+                        <button
                             className="test-btn secondary"
                             onClick={testDatabaseConnection}
                             disabled={isLoading}
                         >
                             💾 PostgreSQL 연결 테스트
                         </button>
-                        
-                        <a 
+
+                        <a
                             href={`${GAME_SERVER_URL}/debug/env`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -293,9 +293,9 @@ const GameTest: React.FC = () => {
                                 <li>• MetalLB 로드밸런서</li>
                             </ul>
                         </div>
-                        
+
                         <div className="arch-arrow">🔗 Tailscale VPN</div>
-                        
+
                         <div className="arch-component cloud">
                             <h3>☁️ AWS 클라우드</h3>
                             <ul>
@@ -306,7 +306,7 @@ const GameTest: React.FC = () => {
                             </ul>
                         </div>
                     </div>
-                    
+
                     <div className="benefits">
                         <h4>💰 하이브리드 클라우드 이점</h4>
                         <ul>
@@ -330,7 +330,7 @@ const GameTest: React.FC = () => {
                                 <span>Socket.IO Client</span>
                             </div>
                         </div>
-                        
+
                         <div className="tech-category">
                             <h3>Backend (라즈베리파이)</h3>
                             <div className="tech-tags">
@@ -340,7 +340,7 @@ const GameTest: React.FC = () => {
                                 <span>Redis</span>
                             </div>
                         </div>
-                        
+
                         <div className="tech-category">
                             <h3>Infrastructure</h3>
                             <div className="tech-tags">
@@ -350,7 +350,7 @@ const GameTest: React.FC = () => {
                                 <span>Grafana</span>
                             </div>
                         </div>
-                        
+
                         <div className="tech-category">
                             <h3>Cloud (AWS)</h3>
                             <div className="tech-tags">
