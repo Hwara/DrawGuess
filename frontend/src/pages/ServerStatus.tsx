@@ -442,7 +442,7 @@ const ServerStatus: React.FC = () => {
                             <div className="overview-card">
                                 <div className="card-icon">📊</div>
                                 <div className="card-content">
-                                    <div className="card-value">{data.application.gameMetrics.avgPlayersPerRoom.toFixed(1)}</div>
+                                    <div className="card-value">{data.application.gameMetrics.avgPlayersPerRoom}</div>
                                     <div className="card-label">방당 평균 인원</div>
                                 </div>
                             </div>
