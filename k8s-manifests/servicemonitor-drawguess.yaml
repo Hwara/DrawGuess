@@ -18,21 +18,3 @@ spec:
   namespaceSelector:
     matchNames:
     - default
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: drawguess-server-metrics
-  namespace: default
-  labels:
-    app: drawguess-server-realtime
-    metrics: prometheus
-spec:
-  selector:
-    app: drawguess-server-realtime
-  ports:
-  - name: http
-    port: 3000
-    targetPort: 3000
-    protocol: TCP
-  type: ClusterIP
