@@ -132,7 +132,158 @@ export const About: React.FC = () => {
                         <strong>📖 블로그:</strong> 구축 과정을 단계별로 문서화하여 공유합니다.
                     </div>
                 </div>
+                <div className="game-test">
+                    <div className="container">
+                        {/* 하이브리드 아키텍처 정보 */}
+                        <section className="architecture-info">
+                            <h2>🏗️ 하이브리드 아키텍처</h2>
+                            <div className="architecture-diagram">
+                                <div className="arch-component local">
+                                    <h3>🥧 라즈베리파이 클러스터</h3>
+                                    <ul>
+                                        <li>• Node.js 게임 서버 (실시간 로직)</li>
+                                        <li>• Redis 캐시 (임시 데이터)</li>
+                                        <li>• Kubernetes 오케스트레이션</li>
+                                        <li>• MetalLB 로드밸런서</li>
+                                    </ul>
+                                </div>
+
+                                <div className="arch-arrow">
+                                    <span>🔗</span>
+                                    <small>Tailscale VPN</small>
+                                </div>
+
+                                <div className="arch-component cloud">
+                                    <h3>☁️ AWS 클라우드</h3>
+                                    <ul>
+                                        <li>• PostgreSQL RDS (영구 데이터)</li>
+                                        <li>• S3 (정적 자산 저장)</li>
+                                        <li>• CloudWatch (모니터링)</li>
+                                    </ul>
+                                </div>
+
+                                <div className="arch-arrow">
+                                    <span>🌐</span>
+                                    <small>웹 트래픽</small>
+                                </div>
+
+                                <div className="arch-component" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white' }}>
+                                    <h3>🌐 Cloudflare</h3>
+                                    <ul>
+                                        <li>• DNS 관리 (hwara-dev.kr)</li>
+                                        <li>• CDN & 캐싱</li>
+                                        <li>• DDoS 보호</li>
+                                        <li>• SSL/TLS 인증서</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="data-flow">
+                                <h4>📊 데이터 흐름</h4>
+                                <div className="flow-items">
+                                    <div className="flow-item">
+                                        <span className="flow-icon">⚡</span>
+                                        <div className="flow-content">
+                                            <strong>실시간 데이터</strong>
+                                            <p>게임 세션, 채팅 → Redis (라즈베리파이)</p>
+                                        </div>
+                                    </div>
+                                    <div className="flow-item">
+                                        <span className="flow-icon">💾</span>
+                                        <div className="flow-content">
+                                            <strong>영구 데이터</strong>
+                                            <p>사용자 정보, 게임 기록 → PostgreSQL (AWS)</p>
+                                        </div>
+                                    </div>
+                                    <div className="flow-item">
+                                        <span className="flow-icon">🌍</span>
+                                        <div className="flow-content">
+                                            <strong>글로벌 배포</strong>
+                                            <p>웹사이트, 이미지 → Cloudflare CDN</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="benefits">
+                                <h4>💰 하이브리드 클라우드 이점</h4>
+                                <ul>
+                                    <li>• <strong>70% 비용 절감</strong>: 컴퓨팅은 로컬, 관리형 서비스는 클라우드</li>
+                                    <li>• <strong>낮은 지연시간</strong>: 실시간 게임 로직을 물리적으로 가까운 곳에서 처리</li>
+                                    <li>• <strong>높은 안정성</strong>: AWS 관리형 서비스로 데이터 백업 및 복구</li>
+                                    <li>• <strong>글로벌 CDN</strong>: Cloudflare를 통한 전 세계 빠른 콘텐츠 배포</li>
+                                    <li>• <strong>통합 DNS/CDN</strong>: Cloudflare 하나로 DNS + CDN + 보안 통합 관리</li>
+                                    <li>• <strong>확장 가능성</strong>: Kubernetes 기반 수평 확장</li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        {/* 기술 스택 정보 */}
+                        <section className="tech-stack">
+                            <h2>🛠️ 기술 스택</h2>
+                            <div className="tech-categories">
+                                <div className="tech-category">
+                                    <h3>Frontend</h3>
+                                    <div className="tech-tags">
+                                        <span>React</span>
+                                        <span>TypeScript</span>
+                                        <span>Socket.IO Client</span>
+                                    </div>
+                                </div>
+
+                                <div className="tech-category">
+                                    <h3>Backend (라즈베리파이)</h3>
+                                    <div className="tech-tags">
+                                        <span>Node.js</span>
+                                        <span>Express</span>
+                                        <span>Socket.IO</span>
+                                        <span>Redis</span>
+                                    </div>
+                                </div>
+
+                                <div className="tech-category">
+                                    <h3>Infrastructure</h3>
+                                    <div className="tech-tags">
+                                        <span>Kubernetes</span>
+                                        <span>MetalLB</span>
+                                        <span>Prometheus</span>
+                                        <span>Grafana</span>
+                                    </div>
+                                </div>
+
+                                <div className="tech-category">
+                                    <h3>AWS 클라우드</h3>
+                                    <div className="tech-tags">
+                                        <span>RDS PostgreSQL</span>
+                                        <span>S3</span>
+                                        <span>CloudWatch</span>
+                                    </div>
+                                </div>
+
+                                <div className="tech-category">
+                                    <h3>Cloudflare</h3>
+                                    <div className="tech-tags">
+                                        <span>DNS</span>
+                                        <span>CDN</span>
+                                        <span>DDoS Protection</span>
+                                        <span>SSL/TLS</span>
+                                    </div>
+                                </div>
+
+                                <div className="tech-category">
+                                    <h3>VPN & 연결</h3>
+                                    <div className="tech-tags">
+                                        <span>Tailscale VPN</span>
+                                        <span>WireGuard</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </div>
+
         </div>
+
     );
 };
