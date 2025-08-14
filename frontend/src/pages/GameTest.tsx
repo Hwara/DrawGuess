@@ -1,588 +1,594 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 
-// 🔧 실제 API 응답 구조에 맞게 정확히 수정된 인터페이스
-interface GameServerStatus {
-    status: string;
-    timestamp: string;
-    environment: string;
-    version: string;
-    location: string;
-    services: {
-        redis: {
-            status: string;
-            ping: string;
-        };
-        postgresql: {
-            status: string;
-            time: string;
-            version: string;
-        };
-        socketio: {
-            status: string;
-            connected_clients: number;
-            active_rooms: number;
-            total_players: number;
-        };
-    };
-    hybrid_cloud: {
-        location: string;
-        aws_connection: string;
-        tailscale: string;
-    };
-    config: {
-        redis_host: string;
-        db_host: string;
-    };
+// 타입 정의
+interface User {
+    id: string;
+    username: string;
+    joinTime: number;
 }
 
-// 🔧 API 응답에 맞게 수정된 인터페이스
-interface ApiGameStats {
-    realtime: {
-        active_rooms: number;
-        playing_rooms: number;
-        active_players: number;
-        socket_connections: number;
-    };
-    historical: {
-        total_games: number;
-        total_users: number;
-        top_scores: any[];
-    };
-    last_updated: string;
+interface Player {
+    id: string;
+    username: string;
+    isReady: boolean;
+    isDrawing: boolean;
+    score: number;
+    joinTime: number;
 }
 
-// UI에서 사용할 가공된 데이터 인터페이스
-interface GameStats {
-    totalUsers: number;
-    totalGames: number;
-    activeConnections: number;
-    activeRooms: number;
-    activePlayers: number;
-    performance?: {
-        avgResponseTime: number;
-        memoryUsage: number;
-        cpuUsage: number;
-    };
+interface RoomListItem {
+    roomId: string;
+    roomName: string;
+    playerCount: number;
+    maxPlayers: number;
+    status: 'waiting' | 'playing' | 'finished';
+    createdAt: number;
+}
+
+interface GameState {
+    roomId: string;
+    roomName: string;
+    status: 'waiting' | 'playing' | 'finished';
+    players: Player[];
+    currentRound: number;
+    maxRounds: number;
+    currentDrawer: string | null;
+    currentWord: string | null;
+    roundStartTime: number | null;
+    scores: Record<string, number>;
+    chatHistory: ChatMessage[];
+    createdAt: number;
+}
+
+interface ChatMessage {
+    id: number;
+    userId: string;
+    username: string;
+    message: string;
+    timestamp: number;
+    isAnswer: boolean;
+}
+
+interface GameError {
+    message: string;
+    error?: string;
+    code?: string;
 }
 
 const GameTest: React.FC = () => {
-    const [serverStatus, setServerStatus] = useState<GameServerStatus | null>(null);
-    const [gameStats, setGameStats] = useState<GameStats | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+    // Socket.IO 상태
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const [connected, setConnected] = useState(false);
+    const [connectionError, setConnectionError] = useState<string | null>(null);
 
-    // 🌐 게임 서버 URL - api.hwara-dev.kr로 고정
-    const GAME_SERVER_URL = 'https://api.hwara-dev.kr';
+    // 사용자 상태
+    const [user, setUser] = useState<User | null>(null);
+    const [username, setUsername] = useState('');
+    const [isRegistering, setIsRegistering] = useState(false);
 
-    const fetchServerStatus = async () => {
-        setIsLoading(true);
-        setError(null);
+    // 방 관련 상태
+    const [rooms, setRooms] = useState<RoomListItem[]>([]);
+    const [currentRoom, setCurrentRoom] = useState<GameState | null>(null);
+    const [newRoomName, setNewRoomName] = useState('');
+    const [isCreatingRoom, setIsCreatingRoom] = useState(false);
 
-        try {
-            console.log(`🔗 서버 상태 확인: ${GAME_SERVER_URL}/health`);
-            const response = await fetch(`${GAME_SERVER_URL}/health`);
+    // 채팅 상태
+    const [chatMessage, setChatMessage] = useState('');
+    const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
-            if (!response.ok) {
-                throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
-            }
+    // 로그 상태
+    const [logs, setLogs] = useState<string[]>([]);
+    const [errors, setErrors] = useState<string[]>([]);
 
-            const data: GameServerStatus = await response.json();
-            console.log('✅ 서버 상태 응답:', data);
+    // Refs
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const logsContainerRef = useRef<HTMLDivElement>(null);
 
-            setServerStatus(data);
-            setLastUpdate(new Date());
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : '서버 연결 실패';
-            console.error('❌ 서버 상태 확인 실패:', errorMessage);
-            setError(errorMessage);
-        } finally {
-            setIsLoading(false);
-        }
+    // 로그 함수
+    const addLog = (message: string) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs(prev => [...prev.slice(-19), `[${timestamp}] ${message}`]);
     };
 
-    const fetchGameStats = async () => {
-        try {
-            console.log(`📊 게임 통계 확인: ${GAME_SERVER_URL}/api/stats`);
-            const response = await fetch(`${GAME_SERVER_URL}/api/stats`);
-
-            if (response.ok) {
-                const apiData: ApiGameStats = await response.json();
-                console.log('✅ 게임 통계 응답:', apiData);
-
-                // 🔄 API 응답을 UI 형식으로 변환
-                const transformedStats: GameStats = {
-                    totalUsers: apiData.historical.total_users,
-                    totalGames: apiData.historical.total_games,
-                    activeConnections: apiData.realtime.socket_connections,
-                    activeRooms: apiData.realtime.active_rooms,
-                    activePlayers: apiData.realtime.active_players,
-                    // performance 데이터는 현재 API에서 제공하지 않으므로 undefined
-                };
-
-                console.log('🔧 변환된 통계:', transformedStats);
-                setGameStats(transformedStats);
-            } else {
-                console.warn(`⚠️ 게임 통계 로드 실패: ${response.status}`);
-            }
-        } catch (err) {
-            console.warn('⚠️ 게임 통계 로드 실패:', err);
-        }
+    const addError = (error: string) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setErrors(prev => [...prev.slice(-9), `[${timestamp}] ❌ ${error}`]);
     };
 
-    const showRedisInfo = () => {
-        if (!serverStatus) {
-            alert('서버 상태를 먼저 확인해주세요.');
+    // Socket.IO 연결
+    const connectToServer = () => {
+        if (socket?.connected) {
+            addLog('이미 서버에 연결되어 있습니다.');
             return;
         }
 
-        const redisInfo = serverStatus.services.redis;
-        alert(`Redis 연결 정보:\n` +
-            `상태: ${redisInfo.status}\n` +
-            `Ping: ${redisInfo.ping}\n` +
-            `호스트: ${serverStatus.config.redis_host}`);
+        addLog('서버에 연결 중...');
+        setConnectionError(null);
+
+        const newSocket = io('https://api.hwara-dev.kr', {
+            withCredentials: true,
+            transports: ['websocket', 'polling'],
+            timeout: 20000,
+            forceNew: true
+        });
+
+        // 연결 이벤트
+        newSocket.on('connect', () => {
+            setConnected(true);
+            setConnectionError(null);
+            addLog(`✅ 서버 연결 성공 (ID: ${newSocket.id})`);
+        });
+
+        newSocket.on('disconnect', (reason) => {
+            setConnected(false);
+            addLog(`❌ 서버 연결 해제: ${reason}`);
+            // 상태 초기화
+            setUser(null);
+            setCurrentRoom(null);
+            setRooms([]);
+            setChatHistory([]);
+        });
+
+        newSocket.on('connect_error', (error) => {
+            setConnectionError(error.message);
+            addError(`연결 오류: ${error.message}`);
+        });
+
+        // 사용자 등록 이벤트
+        newSocket.on('registered', (userData: User) => {
+            setUser(userData);
+            setIsRegistering(false);
+            addLog(`✅ 사용자 등록 완료: ${userData.username}`);
+        });
+
+        // 방 관련 이벤트
+        newSocket.on('room-list', (roomList: RoomListItem[]) => {
+            setRooms(roomList);
+            addLog(`📋 방 목록 업데이트 (${roomList.length}개 방)`);
+        });
+
+        newSocket.on('room-list-updated', (roomInfo) => {
+            addLog(`🔄 방 목록 실시간 업데이트`);
+        });
+
+        newSocket.on('room-deleted', (data) => {
+            addLog(`🗑️ 방 삭제됨: ${data.roomId}`);
+        });
+
+        newSocket.on('room-created', (gameState: GameState) => {
+            setCurrentRoom(gameState);
+            setIsCreatingRoom(false);
+            setChatHistory(gameState.chatHistory || []);
+            addLog(`✅ 방 생성 완료: ${gameState.roomName}`);
+        });
+
+        newSocket.on('joined-room', (gameState: GameState) => {
+            setCurrentRoom(gameState);
+            setChatHistory(gameState.chatHistory || []);
+            addLog(`✅ 방 참여 완료: ${gameState.roomName}`);
+        });
+
+        newSocket.on('left-room', (data) => {
+            setCurrentRoom(null);
+            setChatHistory([]);
+            addLog(`✅ 방 나가기 완료: ${data.roomId}`);
+        });
+
+        newSocket.on('room-updated', (gameState: GameState) => {
+            setCurrentRoom(gameState);
+            addLog(`🔄 방 상태 업데이트: ${gameState.players.length}명`);
+        });
+
+        // 채팅 이벤트
+        newSocket.on('chat-message', (message: ChatMessage) => {
+            setChatHistory(prev => [...prev, message]);
+            addLog(`💬 채팅: ${message.username}: ${message.message}`);
+        });
+
+        // 에러 이벤트
+        newSocket.on('error', (error: GameError) => {
+            addError(error.message);
+        });
+
+        setSocket(newSocket);
     };
 
-    const showDatabaseInfo = () => {
-        if (!serverStatus) {
-            alert('서버 상태를 먼저 확인해주세요.');
+    // 서버 연결 해제
+    const disconnectFromServer = () => {
+        if (socket) {
+            socket.close();
+            setSocket(null);
+            setConnected(false);
+            addLog('🔌 서버 연결 해제');
+        }
+    };
+
+    // 사용자 등록
+    const registerUser = () => {
+        if (!socket || !username.trim()) {
+            addError('사용자명을 입력하세요.');
             return;
         }
 
-        const dbInfo = serverStatus.services.postgresql;
-        alert(`PostgreSQL 연결 정보:\n` +
-            `상태: ${dbInfo.status}\n` +
-            `버전: ${dbInfo.version}\n` +
-            `연결 시간: ${new Date(dbInfo.time).toLocaleString('ko-KR')}\n` +
-            `호스트: ${serverStatus.config.db_host}`);
+        setIsRegistering(true);
+        socket.emit('register', { username: username.trim() });
+        addLog(`👤 사용자 등록 요청: ${username.trim()}`);
     };
 
-    const showHybridCloudInfo = () => {
-        if (!serverStatus) {
-            alert('서버 상태를 먼저 확인해주세요.');
+    // 방 생성
+    const createRoom = () => {
+        if (!socket || !user) {
+            addError('먼저 사용자 등록을 해주세요.');
             return;
         }
 
-        const hybridInfo = serverStatus.hybrid_cloud;
-        alert(`하이브리드 클라우드 정보:\n` +
-            `위치: ${hybridInfo.location}\n` +
-            `AWS 연결: ${hybridInfo.aws_connection}\n` +
-            `Tailscale VPN: ${hybridInfo.tailscale}\n` +
-            `서버 위치: ${serverStatus.location}`);
+        const roomName = newRoomName.trim() || `${user.username}의 방`;
+        setIsCreatingRoom(true);
+        socket.emit('create-room', { name: roomName });
+        addLog(`🏠 방 생성 요청: ${roomName}`);
+        setNewRoomName('');
     };
+
+    // 방 참여
+    const joinRoom = (roomId: string) => {
+        if (!socket || !user) {
+            addError('먼저 사용자 등록을 해주세요.');
+            return;
+        }
+
+        socket.emit('join-room', { roomId });
+        addLog(`🚪 방 참여 요청: ${roomId}`);
+    };
+
+    // 방 나가기
+    const leaveRoom = () => {
+        if (!socket || !currentRoom) {
+            addError('참여한 방이 없습니다.');
+            return;
+        }
+
+        socket.emit('leave-room', { roomId: currentRoom.roomId });
+        addLog(`🚪 방 나가기 요청: ${currentRoom.roomId}`);
+    };
+
+    // 채팅 메시지 전송
+    const sendChatMessage = () => {
+        if (!socket || !currentRoom || !chatMessage.trim()) {
+            return;
+        }
+
+        socket.emit('chat-message', {
+            roomId: currentRoom.roomId,
+            message: chatMessage.trim()
+        });
+
+        addLog(`💬 채팅 전송: ${chatMessage.trim()}`);
+        setChatMessage('');
+    };
+
+    // 엔터키로 채팅 전송
+    const handleChatKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    };
+
+    // 스크롤 자동 이동
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [chatHistory]);
 
     useEffect(() => {
-        console.log(`🚀 GameTest 초기화 - 서버: ${GAME_SERVER_URL}`);
-        fetchServerStatus();
-        fetchGameStats();
-
-        // 자동 새로고침 (30초마다)
-        const interval = setInterval(() => {
-            console.log('⏰ 자동 새로고침 실행');
-            fetchServerStatus();
-            fetchGameStats();
-        }, 30000);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    const getStatusColor = (status: string | undefined | null) => {
-        const statusStr = String(status || '').toLowerCase();
-
-        switch (statusStr) {
-            case 'healthy':
-            case 'connected':
-            case 'ok':
-            case 'active':
-                return '#4ade80'; // green
-            case 'warning':
-                return '#fbbf24'; // yellow
-            case 'error':
-            case 'disconnected':
-            case 'inactive':
-                return '#f87171'; // red
-            default:
-                return '#94a3b8'; // gray
+        if (logsContainerRef.current) {
+            logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
         }
-    };
+    }, [logs]);
+
+    // 컴포넌트 언마운트 시 연결 해제
+    useEffect(() => {
+        return () => {
+            if (socket) {
+                socket.close();
+            }
+        };
+    }, [socket]);
 
     return (
-        <div className="game-test">
+        <div className="main-content">
             <div className="container">
-                {/* 헤더 */}
-                <div className="test-header">
-                    <h1>🎮 게임 서버 테스트</h1>
-                    <div className="server-info">
-                        <span className="server-url">서버: {GAME_SERVER_URL}</span>
-                        <div className="last-update">
-                            <span className="pulse-dot"></span>
-                            마지막 업데이트: {lastUpdate.toLocaleTimeString('ko-KR')}
+                {/* 페이지 헤더 */}
+                <div className="game-test-header">
+                    <h1>🎮 DrawGuess Socket.IO 게임 기능 테스트</h1>
+                    <p>실시간 멀티플레이어 게임 기능을 테스트하는 페이지입니다</p>
+                </div>
+
+                {/* 연결 상태 카드 */}
+                <div className="connection-status">
+                    <div className="status-card">
+                        <div className="card-header">
+                            <h2>🔗 서버 연결</h2>
+                            <div className="connection-indicator">
+                                <div className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></div>
+                                <span className={`status-text ${connected ? 'connected' : 'disconnected'}`}>
+                                    {connected ? '연결됨' : '연결 안됨'}
+                                </span>
+                                {socket?.id && <span className="socket-id">ID: {socket.id}</span>}
+                            </div>
+                        </div>
+
+                        {connectionError && (
+                            <div className="error-alert">
+                                <span>⚠️ 연결 오류: {connectionError}</span>
+                            </div>
+                        )}
+
+                        <div className="button-group">
+                            <button
+                                onClick={connectToServer}
+                                disabled={connected}
+                                className="btn btn-primary"
+                            >
+                                연결
+                            </button>
+                            <button
+                                onClick={disconnectFromServer}
+                                disabled={!connected}
+                                className="btn btn-secondary"
+                            >
+                                연결 해제
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* 에러 메시지 */}
-                {error && (
-                    <div className="error-banner">
-                        <span>⚠️ {error}</span>
-                        <button onClick={fetchServerStatus} disabled={isLoading}>
-                            다시 시도
-                        </button>
+                {/* 사용자 등록 카드 */}
+                <div className="user-registration">
+                    <div className="status-card">
+                        <h2>👤 사용자 등록</h2>
+                        {user ? (
+                            <div className="success-alert">
+                                <span>✅ 등록된 사용자: <strong>{user.username}</strong> (ID: {user.id})</span>
+                            </div>
+                        ) : (
+                            <div className="input-group">
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    placeholder="사용자명 입력"
+                                    className="game-input"
+                                    disabled={!connected || isRegistering}
+                                    onKeyPress={(e) => e.key === 'Enter' && registerUser()}
+                                />
+                                <button
+                                    onClick={registerUser}
+                                    disabled={!connected || !username.trim() || isRegistering}
+                                    className="btn btn-primary"
+                                >
+                                    {isRegistering ? '등록 중...' : '등록'}
+                                </button>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
 
-                {/* 서버 상태 */}
-                <section className="server-status-section">
-                    <h2>📊 서버 상태</h2>
-                    {serverStatus ? (
-                        <div className="status-grid">
-                            <div className="status-card">
-                                <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.status) }}>
-                                </div>
-                                <div className="status-content">
-                                    <h3>전체 상태</h3>
-                                    <p>{serverStatus.status}</p>
-                                    <small>v{serverStatus.version} | {serverStatus.environment}</small>
+                {/* 메인 게임 영역 */}
+                <div className="game-main-grid">
+                    {/* 방 관리 */}
+                    <div className="room-management">
+                        <div className="status-card">
+                            <h2>🏠 방 관리</h2>
+
+                            {/* 방 생성 */}
+                            <div className="room-creation">
+                                <h3>새 방 만들기</h3>
+                                <div className="input-group">
+                                    <input
+                                        type="text"
+                                        value={newRoomName}
+                                        onChange={(e) => setNewRoomName(e.target.value)}
+                                        placeholder="방 이름 (선택사항)"
+                                        className="game-input"
+                                        disabled={!user || isCreatingRoom}
+                                        onKeyPress={(e) => e.key === 'Enter' && createRoom()}
+                                    />
+                                    <button
+                                        onClick={createRoom}
+                                        disabled={!user || isCreatingRoom}
+                                        className="btn btn-accent"
+                                    >
+                                        {isCreatingRoom ? '생성 중...' : '생성'}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="status-card">
-                                <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services.redis.status) }}>
-                                </div>
-                                <div className="status-content">
-                                    <h3>Redis Cache</h3>
-                                    <p>{serverStatus.services.redis.status}</p>
-                                    <small>{serverStatus.services.redis.ping} | {serverStatus.config.redis_host}</small>
-                                </div>
-                            </div>
-
-                            <div className="status-card">
-                                <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services.postgresql.status) }}>
-                                </div>
-                                <div className="status-content">
-                                    <h3>PostgreSQL DB</h3>
-                                    <p>{serverStatus.services.postgresql.status}</p>
-                                    <small>{serverStatus.services.postgresql.version} | AWS RDS</small>
-                                </div>
-                            </div>
-
-                            <div className="status-card">
-                                <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.services.socketio.status) }}>
-                                </div>
-                                <div className="status-content">
-                                    <h3>Socket.IO 서비스</h3>
-                                    <p>{serverStatus.services.socketio.status}</p>
-                                    <small>{serverStatus.services.socketio.connected_clients}명 연결 | {serverStatus.services.socketio.active_rooms}개 방</small>
-                                </div>
-                            </div>
-
-                            <div className="status-card">
-                                <div className="status-indicator"
-                                    style={{ backgroundColor: getStatusColor(serverStatus.hybrid_cloud.aws_connection) }}>
-                                </div>
-                                <div className="status-content">
-                                    <h3>하이브리드 클라우드</h3>
-                                    <p>{serverStatus.hybrid_cloud.aws_connection}</p>
-                                    <small>Tailscale: {serverStatus.hybrid_cloud.tailscale} | {serverStatus.location}</small>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="loading-placeholder">
-                            {isLoading ? '서버 상태 확인 중...' : '서버 상태를 불러올 수 없습니다.'}
-                        </div>
-                    )}
-                </section>
-
-                {/* 게임 통계 */}
-                {gameStats ? (
-                    <section className="game-stats-section">
-                        <h2>📈 게임 통계</h2>
-                        <div className="stats-grid">
-                            <div className="stat-card">
-                                <div className="stat-icon">👥</div>
-                                <div className="stat-content">
-                                    <div className="stat-value">{gameStats.totalUsers}</div>
-                                    <div className="stat-label">총 사용자</div>
-                                </div>
-                            </div>
-
-                            <div className="stat-card">
-                                <div className="stat-icon">🎮</div>
-                                <div className="stat-content">
-                                    <div className="stat-value">{gameStats.totalGames}</div>
-                                    <div className="stat-label">총 게임 수</div>
-                                </div>
-                            </div>
-
-                            <div className="stat-card">
-                                <div className="stat-icon">🔗</div>
-                                <div className="stat-content">
-                                    <div className="stat-value">{gameStats.activeConnections}</div>
-                                    <div className="stat-label">Socket 연결</div>
-                                </div>
-                            </div>
-
-                            <div className="stat-card">
-                                <div className="stat-icon">🏠</div>
-                                <div className="stat-content">
-                                    <div className="stat-value">{gameStats.activeRooms}</div>
-                                    <div className="stat-label">활성 게임방</div>
-                                </div>
-                            </div>
-
-                            <div className="stat-card">
-                                <div className="stat-icon">👨‍💻</div>
-                                <div className="stat-content">
-                                    <div className="stat-value">{gameStats.activePlayers}</div>
-                                    <div className="stat-label">현재 플레이어</div>
-                                </div>
-                            </div>
-
-                            {gameStats.performance && (
-                                <div className="stat-card">
-                                    <div className="stat-icon">⚡</div>
-                                    <div className="stat-content">
-                                        <div className="stat-value">{gameStats.performance.avgResponseTime}ms</div>
-                                        <div className="stat-label">평균 응답시간</div>
+                            {/* 현재 방 */}
+                            {currentRoom && (
+                                <div className="current-room">
+                                    <h3>📍 현재 방</h3>
+                                    <div className="room-info">
+                                        <div className="room-details">
+                                            <div><strong>방 이름:</strong> {currentRoom.roomName}</div>
+                                            <div><strong>방 ID:</strong> <span className="room-id">{currentRoom.roomId}</span></div>
+                                            <div><strong>플레이어:</strong> {currentRoom.players.length}명</div>
+                                            <div><strong>상태:</strong> <span className={`room-status ${currentRoom.status}`}>{currentRoom.status}</span></div>
+                                        </div>
+                                        <button
+                                            onClick={leaveRoom}
+                                            className="btn btn-danger"
+                                        >
+                                            방 나가기
+                                        </button>
                                     </div>
                                 </div>
                             )}
-                        </div>
-                    </section>
-                ) : (
-                    <section className="game-stats-section">
-                        <h2>📈 게임 통계</h2>
-                        <div className="loading-placeholder">
-                            게임 통계를 불러오는 중...
-                        </div>
-                    </section>
-                )}
 
-                {/* 테스트 버튼들 */}
-                <section className="test-controls">
-                    <h2>🧪 연결 테스트</h2>
-                    <div className="test-buttons">
-                        <button
-                            className="test-btn primary"
-                            onClick={fetchServerStatus}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? '확인 중...' : '🔄 서버 상태 새로고침'}
-                        </button>
-
-                        <button
-                            className="test-btn secondary"
-                            onClick={showRedisInfo}
-                            disabled={!serverStatus}
-                        >
-                            🗄️ Redis 연결 정보
-                        </button>
-
-                        <button
-                            className="test-btn secondary"
-                            onClick={showDatabaseInfo}
-                            disabled={!serverStatus}
-                        >
-                            💾 PostgreSQL 연결 정보
-                        </button>
-
-                        <button
-                            className="test-btn secondary"
-                            onClick={showHybridCloudInfo}
-                            disabled={!serverStatus}
-                        >
-                            🔗 하이브리드 클라우드 정보
-                        </button>
-
-                        <a
-                            href={`${GAME_SERVER_URL}/health`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="test-btn info"
-                        >
-                            🔍 Health 엔드포인트 보기
-                        </a>
-
-                        <a
-                            href={`${GAME_SERVER_URL}/api/stats`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="test-btn info"
-                        >
-                            📊 Stats 엔드포인트 보기
-                        </a>
-                    </div>
-                </section>
-
-                {/* 하이브리드 아키텍처 정보 */}
-                <section className="architecture-info">
-                    <h2>🏗️ 하이브리드 아키텍처</h2>
-                    <div className="architecture-diagram">
-                        <div className="arch-component local">
-                            <h3>🥧 라즈베리파이 클러스터</h3>
-                            <ul>
-                                <li>• Node.js 게임 서버 (실시간 로직)</li>
-                                <li>• Redis 캐시 (임시 데이터)</li>
-                                <li>• Kubernetes 오케스트레이션</li>
-                                <li>• MetalLB 로드밸런서</li>
-                            </ul>
-                        </div>
-
-                        <div className="arch-arrow">
-                            <span>🔗</span>
-                            <small>Tailscale VPN</small>
-                        </div>
-
-                        <div className="arch-component cloud">
-                            <h3>☁️ AWS 클라우드</h3>
-                            <ul>
-                                <li>• PostgreSQL RDS (영구 데이터)</li>
-                                <li>• S3 (정적 자산 저장)</li>
-                                <li>• CloudWatch (모니터링)</li>
-                            </ul>
-                        </div>
-
-                        <div className="arch-arrow">
-                            <span>🌐</span>
-                            <small>웹 트래픽</small>
-                        </div>
-
-                        <div className="arch-component" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white' }}>
-                            <h3>🌐 Cloudflare</h3>
-                            <ul>
-                                <li>• DNS 관리 (hwara-dev.kr)</li>
-                                <li>• CDN & 캐싱</li>
-                                <li>• DDoS 보호</li>
-                                <li>• SSL/TLS 인증서</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div className="data-flow">
-                        <h4>📊 데이터 흐름</h4>
-                        <div className="flow-items">
-                            <div className="flow-item">
-                                <span className="flow-icon">⚡</span>
-                                <div className="flow-content">
-                                    <strong>실시간 데이터</strong>
-                                    <p>게임 세션, 채팅 → Redis (라즈베리파이)</p>
-                                </div>
-                            </div>
-                            <div className="flow-item">
-                                <span className="flow-icon">💾</span>
-                                <div className="flow-content">
-                                    <strong>영구 데이터</strong>
-                                    <p>사용자 정보, 게임 기록 → PostgreSQL (AWS)</p>
-                                </div>
-                            </div>
-                            <div className="flow-item">
-                                <span className="flow-icon">🌍</span>
-                                <div className="flow-content">
-                                    <strong>글로벌 배포</strong>
-                                    <p>웹사이트, 이미지 → Cloudflare CDN</p>
+                            {/* 방 목록 */}
+                            <div className="room-list">
+                                <h3>📋 방 목록 ({rooms.length}개)</h3>
+                                <div className="rooms-container">
+                                    {rooms.length === 0 ? (
+                                        <div className="empty-message">방이 없습니다</div>
+                                    ) : (
+                                        rooms.map((room) => (
+                                            <div key={room.roomId} className="room-item">
+                                                <div className="room-item-info">
+                                                    <div className="room-name">{room.roomName}</div>
+                                                    <div className="room-meta">
+                                                        {room.playerCount}/{room.maxPlayers}명 • {room.status}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => joinRoom(room.roomId)}
+                                                    disabled={!user || currentRoom !== null || room.playerCount >= room.maxPlayers}
+                                                    className="btn btn-small btn-primary"
+                                                >
+                                                    {room.playerCount >= room.maxPlayers ? '가득참' : '참여'}
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="benefits">
-                        <h4>💰 하이브리드 클라우드 이점</h4>
-                        <ul>
-                            <li>• <strong>70% 비용 절감</strong>: 컴퓨팅은 로컬, 관리형 서비스는 클라우드</li>
-                            <li>• <strong>낮은 지연시간</strong>: 실시간 게임 로직을 물리적으로 가까운 곳에서 처리</li>
-                            <li>• <strong>높은 안정성</strong>: AWS 관리형 서비스로 데이터 백업 및 복구</li>
-                            <li>• <strong>글로벌 CDN</strong>: Cloudflare를 통한 전 세계 빠른 콘텐츠 배포</li>
-                            <li>• <strong>통합 DNS/CDN</strong>: Cloudflare 하나로 DNS + CDN + 보안 통합 관리</li>
-                            <li>• <strong>확장 가능성</strong>: Kubernetes 기반 수평 확장</li>
-                        </ul>
-                    </div>
-                </section>
+                    {/* 채팅 */}
+                    <div className="chat-section">
+                        <div className="status-card">
+                            <h2>💬 채팅</h2>
 
-                {/* 기술 스택 정보 */}
-                <section className="tech-stack">
-                    <h2>🛠️ 기술 스택</h2>
-                    <div className="tech-categories">
-                        <div className="tech-category">
-                            <h3>Frontend</h3>
-                            <div className="tech-tags">
-                                <span>React</span>
-                                <span>TypeScript</span>
-                                <span>Socket.IO Client</span>
-                            </div>
-                        </div>
+                            {currentRoom ? (
+                                <>
+                                    {/* 플레이어 목록 */}
+                                    <div className="players-section">
+                                        <h3>👥 플레이어 ({currentRoom.players.length}명)</h3>
+                                        <div className="players-list">
+                                            {currentRoom.players.map((player) => (
+                                                <span key={player.id} className="player-tag">
+                                                    {player.username}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
 
-                        <div className="tech-category">
-                            <h3>Backend (라즈베리파이)</h3>
-                            <div className="tech-tags">
-                                <span>Node.js</span>
-                                <span>Express</span>
-                                <span>Socket.IO</span>
-                                <span>Redis</span>
-                            </div>
-                        </div>
+                                    {/* 채팅 메시지 */}
+                                    <div className="chat-container">
+                                        <div ref={chatContainerRef} className="chat-messages">
+                                            {chatHistory.length === 0 ? (
+                                                <div className="empty-message">채팅 메시지가 없습니다</div>
+                                            ) : (
+                                                chatHistory.map((msg) => (
+                                                    <div key={msg.id} className="chat-message">
+                                                        <span className="chat-username">{msg.username}:</span>
+                                                        <span className="chat-text">{msg.message}</span>
+                                                        <span className="chat-time">
+                                                            {new Date(msg.timestamp).toLocaleTimeString()}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
 
-                        <div className="tech-category">
-                            <h3>Infrastructure</h3>
-                            <div className="tech-tags">
-                                <span>Kubernetes</span>
-                                <span>MetalLB</span>
-                                <span>Prometheus</span>
-                                <span>Grafana</span>
-                            </div>
-                        </div>
-
-                        <div className="tech-category">
-                            <h3>AWS 클라우드</h3>
-                            <div className="tech-tags">
-                                <span>RDS PostgreSQL</span>
-                                <span>S3</span>
-                                <span>CloudWatch</span>
-                            </div>
-                        </div>
-
-                        <div className="tech-category">
-                            <h3>Cloudflare</h3>
-                            <div className="tech-tags">
-                                <span>DNS</span>
-                                <span>CDN</span>
-                                <span>DDoS Protection</span>
-                                <span>SSL/TLS</span>
-                            </div>
-                        </div>
-
-                        <div className="tech-category">
-                            <h3>VPN & 연결</h3>
-                            <div className="tech-tags">
-                                <span>Tailscale VPN</span>
-                                <span>WireGuard</span>
-                            </div>
+                                        {/* 채팅 입력 */}
+                                        <div className="chat-input-group">
+                                            <input
+                                                type="text"
+                                                value={chatMessage}
+                                                onChange={(e) => setChatMessage(e.target.value)}
+                                                onKeyPress={handleChatKeyPress}
+                                                placeholder="메시지 입력..."
+                                                className="game-input"
+                                            />
+                                            <button
+                                                onClick={sendChatMessage}
+                                                disabled={!chatMessage.trim()}
+                                                className="btn btn-primary"
+                                            >
+                                                전송
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="empty-state">
+                                    <div className="empty-icon">🏠</div>
+                                    <p>방에 참여하면 채팅을 사용할 수 있습니다</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                </section>
+                </div>
 
-                {/* 디버깅 정보 */}
-                <section className="debug-info">
-                    <h2>🔍 디버깅 정보</h2>
-                    <div className="debug-details">
-                        <div className="debug-item">
-                            <strong>현재 환경:</strong> {process.env.NODE_ENV || 'development'}
-                        </div>
-                        <div className="debug-item">
-                            <strong>게임 서버 URL:</strong> {GAME_SERVER_URL}
-                        </div>
-                        <div className="debug-item">
-                            <strong>브라우저 User Agent:</strong> {navigator.userAgent}
-                        </div>
-                        <div className="debug-item">
-                            <strong>현재 시간:</strong> {new Date().toISOString()}
+                {/* 로그 섹션 */}
+                <div className="logs-grid">
+                    {/* 일반 로그 */}
+                    <div className="log-section">
+                        <div className="status-card">
+                            <h2>📝 로그</h2>
+                            <div ref={logsContainerRef} className="log-container">
+                                {logs.length === 0 ? (
+                                    <div className="empty-message">로그가 없습니다</div>
+                                ) : (
+                                    logs.map((log, index) => (
+                                        <div key={index} className="log-entry">{log}</div>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     </div>
-                </section>
+
+                    {/* 에러 로그 */}
+                    <div className="error-section">
+                        <div className="status-card">
+                            <h2>⚠️ 에러</h2>
+                            <div className="error-container">
+                                {errors.length === 0 ? (
+                                    <div className="empty-message">에러가 없습니다</div>
+                                ) : (
+                                    errors.map((error, index) => (
+                                        <div key={index} className="error-entry">{error}</div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 도움말 */}
+                <div className="help-section">
+                    <div className="status-card">
+                        <h2>💡 사용 방법</h2>
+                        <div className="help-content">
+                            <div className="help-steps">
+                                <div className="help-step">
+                                    <span className="step-number">1</span>
+                                    <span>먼저 <strong>"연결"</strong> 버튼을 클릭하여 서버에 연결하세요</span>
+                                </div>
+                                <div className="help-step">
+                                    <span className="step-number">2</span>
+                                    <span>사용자명을 입력하고 <strong>"등록"</strong>을 클릭하세요</span>
+                                </div>
+                                <div className="help-step">
+                                    <span className="step-number">3</span>
+                                    <span><strong>"새 방 만들기"</strong>로 방을 생성하거나 기존 방에 참여하세요</span>
+                                </div>
+                                <div className="help-step">
+                                    <span className="step-number">4</span>
+                                    <span>방에 입장하면 다른 플레이어들과 실시간 채팅이 가능합니다</span>
+                                </div>
+                                <div className="help-step">
+                                    <span className="step-number">5</span>
+                                    <span>하단의 로그에서 모든 활동이 기록됩니다</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
