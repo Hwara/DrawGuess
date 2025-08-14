@@ -1150,7 +1150,7 @@ async function startServer() {
     updateGameMetrics();
 
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 DrawGuess 게임 서버 v3.0.5 시작됨`);
+      console.log(`🚀 DrawGuess 게임 서버 시작됨`);
       console.log(`📡 포트: ${PORT}`);
       console.log(`🔍 헬스체크: http://0.0.0.0:${PORT}/health`);
       console.log(`📊 통합 상태: http://0.0.0.0:${PORT}/api/status`);
