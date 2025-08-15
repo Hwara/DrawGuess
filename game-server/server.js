@@ -358,7 +358,11 @@ async function getAllMetricsFromPrometheus() {
     drawguess_nodejs_heap_total_bytes: 'drawguess_nodejs_heap_total_bytes',
     nodejs_heap_usage_percent: '(drawguess_nodejs_heap_used_bytes / drawguess_nodejs_heap_total_bytes) * 100',
     drawguess_redis_connection_status: 'drawguess_redis_connection_status',
+    drawguess_redis_response_time_ms: 'drawguess_redis_response_time_ms',
     drawguess_postgresql_connection_status: 'drawguess_postgresql_connection_status',
+    drawguess_postgresql_response_time_ms: 'drawguess_postgresql_response_time_ms',
+    drawguess_nodejs_external_bytes: 'drawguess_nodejs_external_bytes',
+    drawguess_nodejs_rss_bytes: 'drawguess_nodejs_rss_bytes',
 
     // 트렌드 분석 (5분 전과 비교)
     game_rooms_change_5m: 'drawguess_game_rooms_active - (drawguess_game_rooms_active offset 5m)',
