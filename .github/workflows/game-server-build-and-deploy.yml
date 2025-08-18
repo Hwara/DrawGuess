@@ -112,15 +112,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       
-      - name: 🔧 Install yq (YAML processor)
-        run: |
-          if ! command -v yq &> /dev/null; then
-            echo "Installing yq..."
-            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64
-            sudo chmod +x /usr/local/bin/yq
-          fi
-          yq --version
-      
       - name: 📝 Update Deployment Image Tag
         run: |
           MANIFEST_FILE="gitops/manifests/drawguess-game/deployment.yaml"
