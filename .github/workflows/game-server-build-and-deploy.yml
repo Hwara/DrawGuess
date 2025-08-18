@@ -1,0 +1,116 @@
+# .github/workflows/game-server-build-and-deploy.yml
+name: 🎮 Build and Deploy Game Server
+
+on:
+  push:
+    branches: [main]
+    paths: 
+      - 'game-server/**'  # 게임 서버 코드 변경 시에만 실행
+      - '.github/workflows/game-server-build-and-deploy.yml'  # 워크플로 파일 변경 시에도 실행
+  
+  # 수동 실행도 가능하게 설정
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Custom version tag (e.g., v3.1.3)'
+        required: false
+        default: 'auto'
+
+env:
+  REGISTRY: 172.30.1.64:32000
+  IMAGE_NAME: drawguess/game-server
+
+jobs:
+  build-and-push:
+    name: 🔨 Build Multi-Architecture Image
+    runs-on: self-hosted  # 라즈베리파이 runner 사용
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 전체 히스토리 가져오기 (버전 태깅용)
+      
+      - name: 🏷️ Generate Version Tag
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.version_tag }}" != "auto" ] && [ "${{ github.event.inputs.version_tag }}" != "" ]; then
+            # 수동 입력 버전 사용
+            VERSION="${{ github.event.inputs.version_tag }}"
+          else
+            # 자동 버전 생성: v3.1.x 형태로 증가
+            LAST_TAG=$(git tag -l "v*" | sort -V | tail -1)
+            if [ -z "$LAST_TAG" ]; then
+              VERSION="v3.1.3"  # 첫 번째 태그
+            else
+              # 마지막 숫자 증가 (v3.1.2 -> v3.1.3)
+              VERSION=$(echo $LAST_TAG | awk -F. '{$NF = $NF + 1; print}' OFS=.)
+            fi
+          fi
+          
+          echo "Generated version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      
+      - name: 🔧 Verify Docker Buildx
+        run: |
+          # 현재 사용 중인 builder 확인
+          echo "Current buildx setup:"
+          docker buildx ls
+          docker buildx inspect multiarch-builder
+          
+          # multiarch-builder 사용 설정
+          docker buildx use multiarch-builder
+      
+      - name: 🏗️ Build and Push Multi-Architecture Image
+        working-directory: ./game-server  # Dockerfile이 있는 디렉토리
+        run: |
+          echo "🔨 Building image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          
+          # 멀티 아키텍처 빌드 및 Push
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --push \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            --build-arg COMMIT_SHA=${{ steps.version.outputs.short_sha }} \
+            .
+          
+          echo "✅ Successfully built and pushed:"
+          echo "   - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          echo "   - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+      
+      - name: 🏷️ Create Git Tag
+        run: |
+          # Git 태그 생성 및 푸시
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+          
+          echo "📌 Created and pushed tag: ${{ steps.version.outputs.version }}"
+      
+      - name: 📊 Build Summary
+        run: |
+          echo "## 🎮 DrawGuess Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Built Image" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms**: \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ steps.version.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Update GitOps manifest with new image tag" >> $GITHUB_STEP_SUMMARY
+          echo "2. ArgoCD will automatically sync within 3 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "3. Monitor deployment at: http://172.30.1.105" >> $GITHUB_STEP_SUMMARY
+
+  # 선택적: GitOps 매니페스트 자동 업데이트 (Phase 4에서 추가)
+  # update-gitops:
+  #   name: 📝 Update GitOps Manifest  
+  #   needs: build-and-push
+  #   runs-on: self-hosted
+  #   steps:
+  #     - name: Update Kubernetes Manifest
+  #       run: echo "GitOps 자동 업데이트는 Phase 4에서 구현"
