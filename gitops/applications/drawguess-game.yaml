@@ -1,0 +1,100 @@
+# ArgoCD Application - DrawGuess Game Server
+# 파일 위치: gitops/applications/drawguess-game.yaml
+# Phase 1: 가장 기본적인 GitOps 구성
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: drawguess-game
+  namespace: argocd
+  # 중요: ArgoCD가 이 Application을 삭제할 때 관련 리소스도 함께 삭제
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  # 프로젝트 설정 (default 프로젝트 사용)
+  project: default
+  
+  # 소스 설정 - Git 저장소 정보
+  source:
+    # GitHub 저장소 URL (실제 URL로 변경 필요!)
+    repoURL: https://github.com/Hwara/DrawGuess.git
+    
+    # 브랜치 또는 태그 (HEAD = 최신 커밋)
+    targetRevision: HEAD
+    
+    # 매니페스트가 있는 경로
+    path: gitops/manifests/drawguess-game
+  
+  # 배포 대상 설정
+  destination:
+    # 클러스터 URL (자기 자신 = 로컬 클러스터)
+    server: https://kubernetes.default.svc
+    
+    # 배포할 네임스페이스
+    namespace: default
+  
+  # 동기화 정책 - GitOps의 핵심!
+  syncPolicy:
+    # 자동 동기화 설정 (Phase 1에서는 수동으로 시작)
+    automated:
+      # 수동 동기화로 시작 (학습 목적)
+      # prune: false     # 불필요한 리소스 자동 삭제 비활성화
+      # selfHeal: false  # 자동 복구 비활성화
+    
+    # 동기화 옵션
+    syncOptions:
+      # 네임스페이스 자동 생성 (default는 이미 존재하므로 false)
+      - CreateNamespace=false
+      
+      # 리소스 정리 정책
+      - PrunePropagationPolicy=foreground
+      
+      # 마지막에 불필요한 리소스 정리
+      - PruneLast=true
+      
+      # 차이점만 적용 (성능 최적화)
+      - ApplyOutOfSyncOnly=true
+    
+    # 재시도 정책
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s      # 첫 재시도까지 5초 대기
+        factor: 2         # 매번 2배씩 증가
+        maxDuration: 3m   # 최대 3분 대기
+  
+  # 리소스 상태 무시 설정 (고급 기능)
+  ignoreDifferences:
+    # Service의 clusterIP는 자동 할당되므로 무시
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+        - /metadata/resourceVersion
+    
+    # Deployment의 일부 자동 생성 필드 무시
+    - group: apps
+      kind: Deployment
+      managedFieldsManagers:
+        - kube-controller-manager
+      jsonPointers:
+        - /spec/replicas  # HPA 사용 시 replicas 충돌 방지
+  
+  # 변경 이력 보관 개수
+  revisionHistoryLimit: 5
+
+---
+# ArgoCD Application 상태 설명:
+# 
+# 🔄 OutOfSync: Git의 원하는 상태와 클러스터의 현재 상태가 다름
+# ✅ Synced: Git과 클러스터 상태가 일치함
+# 🟢 Healthy: 모든 리소스가 정상 작동 중
+# 🟡 Progressing: 배포 진행 중
+# 🔴 Degraded: 일부 리소스에 문제 발생
+# ❓ Unknown: 상태를 확인할 수 없음
+#
+# Phase 1 학습 목표:
+# 1. 수동 동기화로 GitOps 워크플로 이해
+# 2. OutOfSync → Synced 상태 변화 관찰
+# 3. Git Push → 자동 감지 → 수동 동기화 체험
