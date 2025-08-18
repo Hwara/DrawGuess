@@ -81,17 +81,6 @@ jobs:
           echo "   - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
           echo "   - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
       
-      - name: 🏷️ Create Git Tag
-        run: |
-          # Git 태그 생성 및 푸시
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          
-          git tag ${{ steps.version.outputs.version }}
-          git push origin ${{ steps.version.outputs.version }}
-          
-          echo "📌 Created and pushed tag: ${{ steps.version.outputs.version }}"
-      
       - name: 📊 Build Summary
         run: |
           echo "## 🎮 DrawGuess Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -105,6 +94,8 @@ jobs:
           echo "1. Update GitOps manifest with new image tag" >> $GITHUB_STEP_SUMMARY
           echo "2. ArgoCD will automatically sync within 3 minutes" >> $GITHUB_STEP_SUMMARY
           echo "3. Monitor deployment at: http://172.30.1.105" >> $GITHUB_STEP_SUMMARY
+          
+          echo "✅ Successfully built: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
 
   # 선택적: GitOps 매니페스트 자동 업데이트 (Phase 4에서 추가)
   # update-gitops:
