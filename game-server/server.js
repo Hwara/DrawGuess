@@ -565,13 +565,16 @@ class GameRoom {
     this.roundStartTime = Date.now();
     this.drawingData = [];
 
-    // 플레이어 상태 업데이트
+    // 🔥 추가: 라운드 시작 시에도 점수 동기화 확인
     this.players.forEach((player, id) => {
       player.isDrawing = (id === this.currentDrawer);
+      player.score = this.scores.get(id) || 0; // 점수 동기화
     });
-    this.drawingData = []; // 새 라운드 시 그림 초기화
 
-    console.log(`🎮 방 ${this.roomId} 라운드 ${this.currentRound} 시작 - 그리는 사람: ${this.currentDrawer}, 단어: ${this.currentWord}`);
+    console.log(`🎮 방 ${this.roomId} 라운드 ${this.currentRound} 시작`);
+    console.log(`   그리는 사람: ${this.currentDrawer}`);
+    console.log(`   단어: ${this.currentWord}`);
+    console.log(`   현재 점수:`, Object.fromEntries(this.scores));
   }
 
   checkAnswer(playerId, answer) {
@@ -585,12 +588,32 @@ class GameRoom {
       // 점수 계산 (빨리 맞힐수록 높은 점수)
       const timeElapsed = Date.now() - this.roundStartTime;
       const timeBonus = Math.max(0, this.gameSettings.ROUND_TIME - Math.floor(timeElapsed / 1000));
-      const points = 100 + timeBonus;
+      const answererPoints = 100 + timeBonus;
+      const drawerPoints = 50;
 
-      this.scores.set(playerId, this.scores.get(playerId) + points);
-      this.scores.set(this.currentDrawer, this.scores.get(this.currentDrawer) + 50); // 그린 사람도 점수
+      // 🔥 중요: scores Map 업데이트
+      const oldAnswererScore = this.scores.get(playerId) || 0;
+      const oldDrawerScore = this.scores.get(this.currentDrawer) || 0;
 
-      console.log(`🎯 플레이어 ${playerId}가 정답 "${this.currentWord}" 맞춤! (${points}점)`);
+      this.scores.set(playerId, oldAnswererScore + answererPoints);
+      this.scores.set(this.currentDrawer, oldDrawerScore + drawerPoints);
+
+      // 🔥 핵심: players Map의 개별 플레이어 객체도 동기화
+      if (this.players.has(playerId)) {
+        this.players.get(playerId).score = this.scores.get(playerId);
+      }
+      if (this.players.has(this.currentDrawer)) {
+        this.players.get(this.currentDrawer).score = this.scores.get(this.currentDrawer);
+      }
+
+      console.log(`🎯 점수 업데이트 완료:`);
+      console.log(`   정답자 ${playerId}: ${oldAnswererScore} → ${this.scores.get(playerId)} (+${answererPoints})`);
+      console.log(`   그린이 ${this.currentDrawer}: ${oldDrawerScore} → ${this.scores.get(this.currentDrawer)} (+${drawerPoints})`);
+
+      // 동기화 검증 로그
+      console.log(`🔍 동기화 확인:`);
+      console.log(`   Player 객체 점수:`, Array.from(this.players.values()).map(p => ({ id: p.id, score: p.score })));
+      console.log(`   Scores Map:`, Object.fromEntries(this.scores));
     }
 
     return isCorrect;
@@ -622,22 +645,35 @@ class GameRoom {
   }
 
   getGameState() {
-    return {
+    // 🔥 중요: players 배열 반환 시 scores Map과 강제 동기화
+    const syncedPlayers = Array.from(this.players.values()).map(player => ({
+      ...player,
+      score: this.scores.get(player.id) || 0 // scores Map의 값으로 강제 동기화
+    }));
+
+    const gameState = {
       roomId: this.roomId,
       roomName: this.roomName,
       status: this.status,
-      players: Array.from(this.players.values()),
+      players: syncedPlayers, // 동기화된 플레이어 배열
       currentRound: this.currentRound,
       maxRounds: this.maxRounds,
       currentDrawer: this.currentDrawer,
       currentWord: this.status === 'playing' ?
-        (this.currentDrawer ? this.currentWord : null) : null, // 그리는 사람만 단어 공개
+        (this.currentDrawer ? this.currentWord : null) : null,
       roundStartTime: this.roundStartTime,
-      scores: Object.fromEntries(this.scores),
+      scores: Object.fromEntries(this.scores), // scores Map을 객체로 변환
       drawingData: this.drawingData,
-      chatHistory: this.chatHistory.slice(-50), // 최근 50개 메시지만
+      chatHistory: this.chatHistory.slice(-50),
       createdAt: this.createdAt
     };
+
+    // 🔍 디버깅용 로그 (임시)
+    console.log(`📊 getGameState 호출 - 방 ${this.roomId}:`);
+    console.log(`   플레이어 수: ${syncedPlayers.length}`);
+    console.log(`   점수 현황:`, syncedPlayers.map(p => `${p.username}: ${p.score}`).join(', '));
+
+    return gameState;
   }
 
   // 그림 포인트 추가 (향상된 버전)
@@ -1373,6 +1409,40 @@ app.post('/api/debug/test-drawing/:roomId', async (req, res) => {
       drawingPoint: testDrawingPoint
     });
 
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/debug/scores/:roomId', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found');
+  }
+
+  try {
+    const { roomId } = req.params;
+    const room = gameRooms.get(roomId);
+
+    if (!room) {
+      return res.status(404).json({ error: '방을 찾을 수 없습니다' });
+    }
+
+    res.json({
+      roomId,
+      status: room.status,
+      currentRound: room.currentRound,
+      playersFromMap: Array.from(room.players.values()).map(p => ({
+        id: p.id,
+        username: p.username,
+        score: p.score
+      })),
+      scoresFromMap: Object.fromEntries(room.scores),
+      gameStateResult: room.getGameState().players.map(p => ({
+        id: p.id,
+        username: p.username,
+        score: p.score
+      }))
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
