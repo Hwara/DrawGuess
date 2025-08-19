@@ -12,6 +12,7 @@ const {
     formatRoomForList,
     publishGameEvent
 } = require('../services/gameService');
+const StatisticsService = require('../services/statisticsService');
 const { redisPub } = require('../config/database');
 
 function setupSocketHandlers(io, gameRooms, connectedUsers) {
@@ -245,7 +246,7 @@ function setupSocketHandlers(io, gameRooms, connectedUsers) {
                         console.log(`🎯 정답 처리 완료: ${user.username} -> ${room.currentWord} (${room.scores.get(socket.id)}점)`);
 
                         // 라운드 종료 체크 (모든 사람이 맞췄거나 시간 초과)
-                        setTimeout(() => {
+                        setTimeout(async () => {
                             try {
                                 const gameEnded = room.endRound();
 
@@ -253,12 +254,48 @@ function setupSocketHandlers(io, gameRooms, connectedUsers) {
                                 saveRoomToRedis(room);
 
                                 if (gameEnded && typeof gameEnded === 'object') {
-                                    // 게임 완전 종료
-                                    io.to(data.roomId).emit('game-finished', {
-                                        finalScores: gameEnded,
-                                        gameState: room.getGameState()
-                                    });
-                                    console.log(`🏆 게임 종료: ${data.roomId}`);
+                                    // 🆕 게임 완전 종료 시 PostgreSQL에 저장
+                                    console.log(`🏆 게임 종료: ${data.roomId} - DB 저장 시작`);
+
+                                    try {
+                                        const saveResult = await StatisticsService.saveGameResults(room, gameEnded);
+
+                                        if (saveResult.success) {
+                                            console.log(`💾 DB 저장 성공: 세션 ${saveResult.sessionId}`);
+
+                                            // 성과 메시지 생성
+                                            const achievements = StatisticsService.generateAchievementMessages(gameEnded);
+
+                                            // 게임 종료 이벤트에 DB 저장 결과 포함
+                                            io.to(data.roomId).emit('game-finished', {
+                                                finalScores: gameEnded,
+                                                gameState: room.getGameState(),
+                                                dbSaved: true,
+                                                sessionId: saveResult.sessionId,
+                                                achievements: achievements
+                                            });
+                                        } else {
+                                            console.error(`💾 DB 저장 실패: ${saveResult.error}`);
+
+                                            // DB 저장 실패해도 게임 종료는 정상 처리
+                                            io.to(data.roomId).emit('game-finished', {
+                                                finalScores: gameEnded,
+                                                gameState: room.getGameState(),
+                                                dbSaved: false,
+                                                error: '통계 저장에 실패했습니다'
+                                            });
+                                        }
+                                    } catch (dbError) {
+                                        console.error('DB 저장 중 예외 발생:', dbError);
+
+                                        // 예외 발생해도 게임 종료는 정상 처리
+                                        io.to(data.roomId).emit('game-finished', {
+                                            finalScores: gameEnded,
+                                            gameState: room.getGameState(),
+                                            dbSaved: false,
+                                            error: '통계 저장 중 오류가 발생했습니다'
+                                        });
+                                    }
                                 } else {
                                     // 다음 라운드 시작
                                     io.to(data.roomId).emit('round-ended', room.getGameState());

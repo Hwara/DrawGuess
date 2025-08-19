@@ -13,6 +13,7 @@ const {
     checkPostgreSQLConnection
 } = require('../config/database');
 const { getDrawingHistoryFromRedis } = require('../services/gameService');
+const StatisticsService = require('../services/statisticsService');
 
 const router = express.Router();
 
@@ -268,6 +269,98 @@ router.get('/health', async (req, res) => {
             uptime: process.uptime(),
             version: process.env.npm_package_version || '3.0.5',
             errors: [error.message]
+        });
+    }
+});
+
+// === 순위표 및 통계 API들 (신규) ===
+
+// 리더보드 조회 API
+router.get('/api/leaderboard', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 20;
+        const result = await StatisticsService.getLeaderboard(limit);
+
+        if (result.success) {
+            res.json({
+                success: true,
+                leaderboard: result.data,
+                metadata: result.metadata
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error,
+                leaderboard: []
+            });
+        }
+    } catch (error) {
+        console.error('리더보드 API 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '리더보드 조회 중 오류가 발생했습니다',
+            leaderboard: []
+        });
+    }
+});
+
+// 특정 사용자 상세 통계 조회 API
+router.get('/api/user/:username/stats', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const result = await StatisticsService.getUserDetailedStats(username);
+
+        if (result.success) {
+            res.json(result);
+        } else {
+            res.status(404).json({
+                success: false,
+                error: result.error || '사용자를 찾을 수 없습니다'
+            });
+        }
+    } catch (error) {
+        console.error('사용자 통계 API 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '사용자 통계 조회 중 오류가 발생했습니다'
+        });
+    }
+});
+
+// 전체 게임 통계 조회 API
+router.get('/api/stats/overview', async (req, res) => {
+    try {
+        const result = await StatisticsService.getOverallStatistics();
+        res.json(result);
+    } catch (error) {
+        console.error('전체 통계 API 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '전체 통계 조회 중 오류가 발생했습니다',
+            data: {
+                totalUsers: 0,
+                totalGames: 0,
+                avgPlayersPerGame: 0,
+                highestScore: 0,
+                avgGameDuration: 0
+            }
+        });
+    }
+});
+
+// 최근 게임 활동 조회 API
+router.get('/api/recent-activity', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const result = await StatisticsService.getRecentActivity(limit);
+
+        res.json(result);
+    } catch (error) {
+        console.error('최근 활동 API 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '최근 활동 조회 중 오류가 발생했습니다',
+            data: []
         });
     }
 });
