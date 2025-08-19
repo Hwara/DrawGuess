@@ -21,60 +21,8 @@ export const HowToPlay: React.FC = () => {
                     <p>• 모바일: 터치로 그리기</p>
                     <p>• 태블릿: 스타일러스 지원</p>
 
-                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <strong>🚧 개발 중:</strong> 실제 게임은 Phase 5에서 라즈베리파이 클러스터와 함께 완성됩니다!
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 순위표 페이지
-export const Leaderboard: React.FC = () => {
-    const mockLeaderboard = [
-        { rank: 1, name: '그림왕', score: 2850, games: 45 },
-        { rank: 2, name: '캐치마인드마스터', score: 2630, games: 38 },
-        { rank: 3, name: '피카소', score: 2420, games: 41 },
-        { rank: 4, name: '레오나르도', score: 2180, games: 33 },
-        { rank: 5, name: '모네', score: 1950, games: 29 }
-    ];
-
-    return (
-        <div className="simple-page">
-            <div className="container">
-                <h1>🏆 순위표</h1>
-                <div className="content">
-                    <div style={{ marginBottom: '2rem' }}>
-                        <h3>🥇 전체 순위 (더미 데이터)</h3>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {mockLeaderboard.map(player => (
-                            <div key={player.rank} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '1rem',
-                                background: 'rgba(255,255,255,0.1)',
-                                borderRadius: '10px'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <span style={{ fontSize: '1.5rem', width: '40px' }}>
-                                        {player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : `#${player.rank}`}
-                                    </span>
-                                    <span style={{ fontWeight: 'bold' }}>{player.name}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                                    <span>{player.score}점</span>
-                                    <span style={{ opacity: 0.7 }}>{player.games}게임</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <strong>📊 실시간 순위:</strong> 라즈베리파이 클러스터 구축 후 실제 데이터로 업데이트됩니다!
+                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(34, 197, 94, 0.2)', borderRadius: '10px', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+                        <strong>✅ 게임 완성!</strong> 실제 멀티플레이어 게임이 라즈베리파이 클러스터에서 완전히 동작합니다!
                     </div>
                 </div>
             </div>
@@ -105,12 +53,12 @@ export const About: React.FC = () => {
 
                     <h3>📊 학습 로드맵</h3>
                     <div style={{ textAlign: 'left', margin: '1rem 0' }}>
-                        <p>✅ <strong>Phase 1:</strong> AWS 정적 웹사이트 (완료)</p>
-                        <p>🔄 <strong>Phase 2:</strong> 동적 웹 애플리케이션</p>
-                        <p>⏳ <strong>Phase 3:</strong> 라즈베리파이 K8s 클러스터</p>
-                        <p>⏳ <strong>Phase 4:</strong> 하이브리드 클라우드 연결</p>
-                        <p>⏳ <strong>Phase 5:</strong> 실시간 멀티플레이어 게임</p>
-                        <p>⏳ <strong>Phase 6:</strong> 운영 & 모니터링</p>
+                        <p>✅ <strong>Phase 1:</strong> AWS 정적 웹사이트</p>
+                        <p>✅ <strong>Phase 2:</strong> 동적 웹 애플리케이션</p>
+                        <p>✅ <strong>Phase 3:</strong> 라즈베리파이 K8s 클러스터</p>
+                        <p>✅ <strong>Phase 4:</strong> 하이브리드 클라우드 연결</p>
+                        <p>✅ <strong>Phase 5:</strong> 실시간 멀티플레이어 게임</p>
+                        <p>✅ <strong>Phase 6:</strong> 운영 & 모니터링</p>
                     </div>
 
                     <h3>🛠️ 핵심 기술</h3>
