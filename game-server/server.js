@@ -909,24 +909,51 @@ io.on('connection', (socket) => {
         isAnswer: false
       };
 
-      // 정답 체크
+      // 정답 체크 (개선된 버전)
       if (room.status === 'playing' && socket.id !== room.currentDrawer) {
         const isCorrect = room.checkAnswer(socket.id, data.message);
         if (isCorrect) {
           message.isAnswer = true;
 
-          // 정답 맞춤 이벤트
+          // Redis에 업데이트된 게임 상태 저장
+          await redisClient.setEx(`room:${data.roomId}`, 3600, JSON.stringify(room.getGameState()));
+
+          // 정답 맞춤 이벤트 (점수 정보 포함)
           io.to(data.roomId).emit('correct-answer', {
             userId: socket.id,
             username: user.username,
             word: room.currentWord,
-            score: room.scores.get(socket.id)
+            score: room.scores.get(socket.id) // 업데이트된 점수
           });
+
+          // 🔥 핵심: 즉시 업데이트된 게임 상태 전송
+          io.to(data.roomId).emit('room-updated', room.getGameState());
+
+          console.log(`🎯 정답 처리 완료: ${user.username} -> ${room.currentWord} (${room.scores.get(socket.id)}점)`);
 
           // 라운드 종료 체크 (모든 사람이 맞췄거나 시간 초과)
           setTimeout(() => {
-            room.endRound();
-            io.to(data.roomId).emit('round-ended', room.getGameState());
+            try {
+              const gameEnded = room.endRound();
+
+              // Redis에 업데이트된 상태 저장
+              redisClient.setEx(`room:${data.roomId}`, 3600, JSON.stringify(room.getGameState()));
+
+              if (gameEnded && typeof gameEnded === 'object') {
+                // 게임 완전 종료
+                io.to(data.roomId).emit('game-finished', {
+                  finalScores: gameEnded,
+                  gameState: room.getGameState()
+                });
+                console.log(`🏆 게임 종료: ${data.roomId}`);
+              } else {
+                // 다음 라운드 시작
+                io.to(data.roomId).emit('round-ended', room.getGameState());
+                console.log(`🔄 라운드 종료: ${data.roomId} -> 라운드 ${room.currentRound}`);
+              }
+            } catch (error) {
+              console.error('라운드 종료 처리 오류:', error);
+            }
           }, 2000);
         }
       }
