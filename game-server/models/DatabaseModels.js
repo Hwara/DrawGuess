@@ -99,11 +99,11 @@ class DatabaseModels {
           wins,
           best_score,
           CASE 
-            WHEN total_games > 0 THEN ROUND((total_score::FLOAT / total_games::FLOAT), 1)
+            WHEN total_games > 0 THEN ROUND((total_score::NUMERIC / total_games::NUMERIC), 1)
             ELSE 0 
           END as avg_score_per_game,
           CASE 
-            WHEN total_games > 0 THEN ROUND((wins::FLOAT / total_games::FLOAT * 100), 1)
+            WHEN total_games > 0 THEN ROUND((wins::NUMERIC / total_games::NUMERIC * 100), 1)
             ELSE 0 
           END as win_rate_percent,
           updated_at
@@ -332,7 +332,7 @@ class DatabaseModels {
           COUNT(DISTINCT username) as total_users,
           COUNT(*) as total_games,
           AVG(total_players) as avg_players_per_game,
-          MAX(total_score) as highest_score,
+          MAX(gp.final_score) as highest_score,
           AVG(game_duration) as avg_game_duration
         FROM game_sessions gs
         LEFT JOIN game_participants gp ON gs.session_id = gp.session_id
