@@ -174,6 +174,8 @@ export const useSocket = (): UseSocketReturn => {
 
         newSocket.on('room-updated', (gameState: GameState) => {
             console.log('🔄 방 상태 업데이트:', gameState);
+            console.log('📊 업데이트된 플레이어들:', gameState.players);
+            console.log('📊 업데이트된 점수들:', gameState.scores);
             setCurrentRoom(gameState);
         });
 

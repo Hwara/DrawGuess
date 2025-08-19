@@ -5,6 +5,7 @@ import DrawingCanvas, { DrawingCanvasRef } from '../components/DrawingCanvas';
 
 const DrawGuessGame: React.FC = () => {
     const {
+        socket,
         connected,
         user,
         currentRoom,
@@ -31,6 +32,7 @@ const DrawGuessGame: React.FC = () => {
     const [gamePhase, setGamePhase] = useState<'login' | 'lobby' | 'room' | 'playing'>('login');
     const [correctAnswerAlert, setCorrectAnswerAlert] = useState<string | null>(null);
     const [gameFinished, setGameFinished] = useState<any[] | null>(null);
+    const [forceUpdate, setForceUpdate] = useState(0); // 강제 리렌더링용
 
     // Canvas 이벤트 핸들러 설정
     useEffect(() => {
@@ -66,6 +68,9 @@ const DrawGuessGame: React.FC = () => {
                         : `🎯 ${data.username}님이 "${data.word}" 정답!`;
 
                     setCorrectAnswerAlert(message);
+
+                    // 🔥 강제 리렌더링으로 점수 업데이트 확실히 반영
+                    setForceUpdate(prev => prev + 1);
 
                     // 정답 맞춘 후 그림 지우기
                     if (canvasRef.current) {
@@ -330,10 +335,10 @@ const DrawGuessGame: React.FC = () => {
                         {/* 왼쪽: 플레이어 목록 */}
                         <div className="players-panel">
                             <h3>플레이어 ({currentRoom?.players?.length || 0}/{currentRoom?.maxRounds || 8})</h3>
-                            <div className="players-list">
+                            <div className="players-list" key={forceUpdate}>
                                 {currentRoom?.players?.map((player: Player) => (
                                     <div
-                                        key={player.id}
+                                        key={`${player.id}-${forceUpdate}`}
                                         className={`player-item ${player.isDrawing ? 'drawing' : ''} ${player.id === user?.id ? 'current-user' : ''}`}
                                     >
                                         <div className="player-name">
@@ -341,7 +346,9 @@ const DrawGuessGame: React.FC = () => {
                                             {player.username}
                                             {player.id === user?.id && ' (나)'}
                                         </div>
-                                        <div className="player-score">{player.score}점</div>
+                                        <div className="player-score" title={`점수: ${player.score}점`}>
+                                            {player.score}점
+                                        </div>
                                     </div>
                                 ))}
                             </div>
