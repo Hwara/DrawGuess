@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 // 타입 정의
 interface LeaderboardEntry {
@@ -49,7 +49,7 @@ export const Leaderboard: React.FC = () => {
         : 'http://localhost:3000';
 
     // 데이터 로드 함수
-    const loadLeaderboardData = async () => {
+    const loadLeaderboardData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -93,12 +93,12 @@ export const Leaderboard: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [API_BASE]);
 
     // 컴포넌트 마운트 시 데이터 로드
     useEffect(() => {
         loadLeaderboardData();
-    }, []);
+    }, [loadLeaderboardData]);
 
     // 순위 아이콘 결정
     const getRankIcon = (rank: number) => {
