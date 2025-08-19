@@ -5,7 +5,6 @@ import DrawingCanvas, { DrawingCanvasRef } from '../components/DrawingCanvas';
 
 const DrawGuessGame: React.FC = () => {
     const {
-        socket,
         connected,
         user,
         currentRoom,
