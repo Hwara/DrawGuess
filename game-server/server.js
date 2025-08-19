@@ -400,6 +400,54 @@ function formatUptime(seconds) {
 
   return `${days}d ${hours}h ${minutes}m ${secs}s`;
 }
+// Redis에 그림 히스토리 저장
+async function saveDrawingToRedis(roomId, drawingPoint) {
+  try {
+    const key = `room:${roomId}:drawing:history`;
+
+    // List에 추가 (최대 1000개 포인트로 제한)
+    await redisClient.lpush(key, JSON.stringify(drawingPoint));
+    await redisClient.ltrim(key, 0, 999); // 오래된 데이터는 자동 삭제
+
+    // TTL 설정 (2시간 후 자동 삭제)
+    await redisClient.expire(key, 7200);
+
+    console.log(`💾 그림 데이터 Redis 저장: ${roomId}`);
+  } catch (error) {
+    console.error('Redis 그림 저장 오류:', error);
+  }
+}
+
+// Redis에서 그림 히스토리 조회
+async function getDrawingHistoryFromRedis(roomId) {
+  try {
+    const key = `room:${roomId}:drawing:history`;
+    const historyStrings = await redisClient.lrange(key, 0, -1);
+
+    // 최신순으로 정렬 (Redis List는 최신이 앞에 오므로 역순)
+    const history = historyStrings
+      .reverse()
+      .map(str => JSON.parse(str))
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    console.log(`📖 Redis에서 그림 히스토리 조회: ${roomId} (${history.length}개)`);
+    return history;
+  } catch (error) {
+    console.error('Redis 그림 조회 오류:', error);
+    return [];
+  }
+}
+
+// 방 삭제 시 그림 데이터 정리
+async function cleanupRoomDrawing(roomId) {
+  try {
+    const key = `room:${roomId}:drawing:history`;
+    await redisClient.del(key);
+    console.log(`🗑️ 방 ${roomId} 그림 데이터 정리 완료`);
+  } catch (error) {
+    console.error('그림 데이터 정리 오류:', error);
+  }
+}
 
 // ===== Redis 연결 설정 =====
 async function initializeRedis() {
@@ -473,6 +521,7 @@ class GameRoom {
     console.log(`🎮 플레이어 ${player.username}이 방 ${this.roomId}에 참여`);
   }
 
+
   removePlayer(playerId) {
     this.players.delete(playerId);
     this.scores.delete(playerId);
@@ -520,6 +569,7 @@ class GameRoom {
     this.players.forEach((player, id) => {
       player.isDrawing = (id === this.currentDrawer);
     });
+    this.drawingData = []; // 새 라운드 시 그림 초기화
 
     console.log(`🎮 방 ${this.roomId} 라운드 ${this.currentRound} 시작 - 그리는 사람: ${this.currentDrawer}, 단어: ${this.currentWord}`);
   }
@@ -588,6 +638,35 @@ class GameRoom {
       chatHistory: this.chatHistory.slice(-50), // 최근 50개 메시지만
       createdAt: this.createdAt
     };
+  }
+
+  // 그림 포인트 추가 (향상된 버전)
+  addDrawingPoint(drawingPoint) {
+    const enhancedPoint = {
+      ...drawingPoint,
+      timestamp: Date.now(),
+      userId: drawingPoint.userId || this.currentDrawer
+    };
+
+    this.drawingData.push(enhancedPoint);
+    return enhancedPoint;
+  }
+
+  // 캔버스 지우기
+  clearCanvas(userId) {
+    const clearEvent = {
+      type: 'clear',
+      userId: userId,
+      timestamp: Date.now()
+    };
+
+    this.drawingData.push(clearEvent);
+    return clearEvent;
+  }
+
+  // 그림 히스토리 가져오기 (최근 1000개 제한)
+  getDrawingHistory() {
+    return this.drawingData.slice(-1000);
   }
 }
 
@@ -694,6 +773,15 @@ io.on('connection', (socket) => {
 
       socket.emit('joined-room', room.getGameState());
 
+      try {
+        const drawingHistory = await getDrawingHistoryFromRedis(data.roomId);
+        if (drawingHistory && drawingHistory.length > 0) {
+          socket.emit('drawing-history', drawingHistory);
+          console.log(`🎨 그림 히스토리 전송: ${drawingHistory.length}개 포인트`);
+        }
+      } catch (error) {
+        console.error('그림 히스토리 전송 오류:', error);
+      }
     } catch (error) {
       socket.emit('error', { message: '방 참여 실패', error: error.message });
     }
@@ -717,6 +805,7 @@ io.on('connection', (socket) => {
       if (shouldDeleteRoom) {
         // 방 삭제
         gameRooms.delete(data.roomId);
+        await cleanupRoomDrawing(data.roomId);
         await redisClient.del(`room:${data.roomId}`);
         console.log(`🗑️ 방 삭제됨: ${data.roomId}`);
 
@@ -771,16 +860,36 @@ io.on('connection', (socket) => {
 
   // 그림 그리기 데이터
   socket.on('drawing', async (data) => {
-    const room = gameRooms.get(data.roomId);
-    if (!room || room.currentDrawer !== socket.id) return;
+    try {
+      const { roomId, ...drawingPoint } = data;
+      const room = gameRooms.get(roomId);
 
-    room.drawingData.push({
-      ...data,
-      timestamp: Date.now()
-    });
+      // 권한 확인: 방에 속해 있고, 현재 그리는 사람인지
+      if (!room || room.currentDrawer !== socket.id) {
+        console.log(`🚫 그리기 권한 없음: ${socket.id} in room ${roomId}`);
+        return;
+      }
 
-    // 그리는 사람을 제외한 다른 플레이어들에게 브로드캐스트
-    socket.to(data.roomId).emit('drawing', data);
+      // DrawingPoint에 서버 정보 추가
+      const enhancedDrawingPoint = {
+        ...drawingPoint,
+        userId: socket.id,
+        timestamp: Date.now()
+      };
+
+      // 메모리와 Redis에 저장
+      room.addDrawingPoint(enhancedDrawingPoint);
+      await saveDrawingToRedis(roomId, enhancedDrawingPoint);
+
+      // 다른 플레이어들에게 브로드캐스트 (자기 제외)
+      socket.to(roomId).emit('drawing', enhancedDrawingPoint);
+
+      console.log(`🎨 그림 데이터 처리 완료: ${socket.id} in room ${roomId}`);
+
+    } catch (error) {
+      console.error('그리기 이벤트 처리 오류:', error);
+      socket.emit('error', { message: '그리기 처리 중 오류가 발생했습니다.' });
+    }
   });
 
   // 채팅 메시지
@@ -844,6 +953,7 @@ io.on('connection', (socket) => {
 
             if (shouldDeleteRoom) {
               gameRooms.delete(roomId);
+              await cleanupRoomDrawing(roomId);
               await redisClient.del(`room:${roomId}`);
               console.log(`🗑️ 방 삭제됨: ${roomId} (마지막 플레이어 나감)`);
 
@@ -877,6 +987,38 @@ io.on('connection', (socket) => {
       console.error('연결 해제 처리 오류:', error);
     }
   });
+
+  // 캔버스 전체 지우기
+  socket.on('clear-canvas', async (data) => {
+    try {
+      const { roomId } = data;
+      const room = gameRooms.get(roomId);
+
+      // 권한 확인: 방에 속해 있고, 현재 그리는 사람인지
+      if (!room || room.currentDrawer !== socket.id) {
+        socket.emit('error', { message: '캔버스를 지울 권한이 없습니다.' });
+        return;
+      }
+
+      // Clear 이벤트 생성
+      const clearEvent = room.clearCanvas(socket.id);
+      await saveDrawingToRedis(roomId, clearEvent);
+
+      // 모든 사용자에게 브로드캐스트 (자기 포함)
+      io.to(roomId).emit('canvas-cleared', {
+        roomId,
+        userId: socket.id,
+        timestamp: clearEvent.timestamp
+      });
+
+      console.log(`🧹 캔버스 지우기: ${socket.id} in room ${roomId}`);
+
+    } catch (error) {
+      console.error('캔버스 지우기 오류:', error);
+      socket.emit('error', { message: '캔버스 지우기 중 오류가 발생했습니다.' });
+    }
+  });
+
 });
 
 // ===== REST API 엔드포인트 =====
@@ -1139,6 +1281,73 @@ app.get('/health', async (req, res) => {
       version: process.env.npm_package_version || '3.0.5',
       errors: [error.message]
     });
+  }
+});
+
+// 개발 중 디버깅용 - 특정 방의 그림 히스토리 확인
+app.get('/api/debug/drawing/:roomId', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found');
+  }
+
+  try {
+    const { roomId } = req.params;
+    const history = await getDrawingHistoryFromRedis(roomId);
+    const room = gameRooms.get(roomId);
+
+    res.json({
+      roomId,
+      drawingPointsCount: history.length,
+      redisHistory: history.slice(-10), // Redis 최근 10개
+      memoryHistory: room ? room.getDrawingHistory().slice(-10) : [], // 메모리 최근 10개
+      currentDrawer: room ? room.currentDrawer : null,
+      gameStatus: room ? room.status : 'not found'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 개발 시 테스트용으로만 사용 (프로덕션에서는 비활성화)
+app.post('/api/debug/test-drawing/:roomId', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found');
+  }
+
+  try {
+    const { roomId } = req.params;
+    const room = gameRooms.get(roomId);
+
+    if (!room) {
+      return res.status(404).json({ error: '방을 찾을 수 없습니다' });
+    }
+
+    // 테스트 그리기 포인트 생성
+    const testDrawingPoint = {
+      type: 'line',
+      x: Math.floor(Math.random() * 400) + 100,
+      y: Math.floor(Math.random() * 300) + 100,
+      prevX: Math.floor(Math.random() * 400) + 100,
+      prevY: Math.floor(Math.random() * 300) + 100,
+      color: '#000000',
+      lineWidth: 3,
+      userId: 'test-user',
+      timestamp: Date.now()
+    };
+
+    // Redis에 저장
+    await saveDrawingToRedis(roomId, testDrawingPoint);
+
+    // 방의 모든 사용자에게 브로드캐스트
+    io.to(roomId).emit('drawing', testDrawingPoint);
+
+    res.json({
+      message: '테스트 그리기 포인트 생성됨',
+      drawingPoint: testDrawingPoint
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
