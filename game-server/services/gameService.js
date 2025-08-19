@@ -9,8 +9,8 @@ async function saveDrawingToRedis(roomId, drawingPoint) {
         const key = `room:${roomId}:drawing:history`;
 
         // List에 추가 (최대 1000개 포인트로 제한)
-        await redisClient.lpush(key, JSON.stringify(drawingPoint));
-        await redisClient.ltrim(key, 0, 999); // 오래된 데이터는 자동 삭제
+        await redisClient.lPush(key, JSON.stringify(drawingPoint));
+        await redisClient.lTrim(key, 0, 999); // 오래된 데이터는 자동 삭제
 
         // TTL 설정 (2시간 후 자동 삭제)
         await redisClient.expire(key, 7200);
