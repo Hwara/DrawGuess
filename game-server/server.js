@@ -589,26 +589,19 @@ class GameRoom {
       const timeElapsed = Date.now() - this.roundStartTime;
       const timeBonus = Math.max(0, this.gameSettings.ROUND_TIME - Math.floor(timeElapsed / 1000));
       const answererPoints = 100 + timeBonus;
-      const drawerPoints = 50;
 
-      // 🔥 중요: scores Map 업데이트
+      // 🔥 수정: 정답자만 점수 획득 (출제자는 점수 없음)
       const oldAnswererScore = this.scores.get(playerId) || 0;
-      const oldDrawerScore = this.scores.get(this.currentDrawer) || 0;
-
       this.scores.set(playerId, oldAnswererScore + answererPoints);
-      this.scores.set(this.currentDrawer, oldDrawerScore + drawerPoints);
 
-      // 🔥 핵심: players Map의 개별 플레이어 객체도 동기화
+      // 🔥 핵심: players Map의 정답자 플레이어 객체 동기화
       if (this.players.has(playerId)) {
         this.players.get(playerId).score = this.scores.get(playerId);
-      }
-      if (this.players.has(this.currentDrawer)) {
-        this.players.get(this.currentDrawer).score = this.scores.get(this.currentDrawer);
       }
 
       console.log(`🎯 점수 업데이트 완료:`);
       console.log(`   정답자 ${playerId}: ${oldAnswererScore} → ${this.scores.get(playerId)} (+${answererPoints})`);
-      console.log(`   그린이 ${this.currentDrawer}: ${oldDrawerScore} → ${this.scores.get(this.currentDrawer)} (+${drawerPoints})`);
+      console.log(`   출제자 ${this.currentDrawer}: 점수 변화 없음 (그리는 역할)`);
 
       // 동기화 검증 로그
       console.log(`🔍 동기화 확인:`);
