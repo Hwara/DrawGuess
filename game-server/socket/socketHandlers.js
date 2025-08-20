@@ -253,7 +253,7 @@ function setupSocketHandlers(io, gameRooms, connectedUsers) {
                                 // Redis에 업데이트된 상태 저장
                                 saveRoomToRedis(room);
 
-                                if (gameEnded && typeof gameEnded === 'object') {
+                                if (gameEnded !== null && gameEnded !== undefined) {
                                     // 🆕 게임 완전 종료 시 PostgreSQL에 저장
                                     console.log(`🏆 게임 종료: ${data.roomId} - DB 저장 시작`);
 

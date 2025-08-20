@@ -150,10 +150,11 @@ class GameRoom {
 
     endRound() {
         if (this.currentRound >= this.maxRounds) {
-            this.endGame();
+            return this.endGame();
         } else {
             this.currentRound++;
             this.startNewRound();
+            return null;
         }
     }
 
