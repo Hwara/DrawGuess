@@ -330,10 +330,10 @@ class DatabaseModels {
             const query = `
         SELECT 
           COUNT(DISTINCT username) as total_users,
-          COUNT(*) as total_games,
-          AVG(total_players) as avg_players_per_game,
+          COUNT(DISTINCT gs.session_id) as total_games,
+          AVG(gs.total_players) as avg_players_per_game,
           MAX(gp.final_score) as highest_score,
-          AVG(game_duration) as avg_game_duration
+          AVG(gs.game_duration) as avg_game_duration
         FROM game_sessions gs
         LEFT JOIN game_participants gp ON gs.session_id = gp.session_id
       `;
