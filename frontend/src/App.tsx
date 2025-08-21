@@ -8,7 +8,6 @@ import { Leaderboard } from './pages/Leaderboard'; // 새로운 Leaderboard impo
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
-import GameTest from './pages/GameTest';
 import DrawGuessGame from './pages/DrawGuessGame';
 import ServerStatus from './pages/ServerStatus';
 import './App.css';
@@ -23,7 +22,6 @@ function App() {
           <Route path="/how-to-play" element={<HowToPlay />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/about" element={<About />} />
-          <Route path="/game-test" element={<GameTest />} />
           <Route path="/draw-guess" element={<DrawGuessGame />} />
           <Route path="/server-status" element={<ServerStatus />} />
         </Routes>
