@@ -96,6 +96,14 @@ resource "aws_security_group" "tailscale" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # nginx 80 포트
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Tailscale IP 대역
+  }
+
   # 모든 아웃바운드 트래픽 허용
   egress {
     from_port   = 0
@@ -131,25 +139,11 @@ resource "aws_security_group" "rds" {
     cidr_blocks = ["100.64.0.0/10"]  # Tailscale IP 대역
   }
 
+  
+
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-rds-sg"
   })
-}
-
-# Ubuntu 24.04 LTS AMI 조회
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
 }
 
 # EC2 키 페어 (SSH 접근용)
@@ -171,7 +165,7 @@ locals {
 
 # EC2 인스턴스
 resource "aws_instance" "tailscale" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = "ami-0ff140cadd6129869"
   instance_type          = "t3.micro"  # 프리티어
   key_name               = aws_key_pair.main.key_name
   vpc_security_group_ids = [aws_security_group.tailscale.id]
